@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Dale's Habit Tracker</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.10.0/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#0b1120;--bg2:#111827;--bg3:#1a2236;--bgh:#1e2a3a;
+  --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.16);
+  --t1:#f0f4f8;--t2:#8fa3b1;--t3:#4d6070;
+  --accent:#3b82f6;--accent-dim:rgba(59,130,246,.15);
+  --r:8px;--rl:14px;--mono:'JetBrains Mono','Fira Code',monospace;
+  --red:rgba(239,68,68,1);--red-dim:rgba(239,68,68,.08);--red-border:rgba(239,68,68,.2);
+  --green:#22c55e;--green-dim:rgba(34,197,94,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%;background:var(--bg);color:var(--t1);font-family:system-ui,-apple-system,sans-serif;font-size:14px;-webkit-font-smoothing:antialiased}
+button{cursor:pointer;font-family:inherit}
+::-webkit-scrollbar{width:5px}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* ── Layout ── */
+.page{max-width:680px;margin:0 auto;padding:1.25rem 1rem 3rem}
+
+/* ── Header ── */
+.hdr{margin-bottom:1.5rem}
+.hdr-eyebrow{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+.hdr-title{font-size:24px;font-weight:700;letter-spacing:-.3px;color:var(--t1)}
+.hdr-row{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px}
+.hdr-date{font-size:13px;color:var(--t3);margin-top:4px}
+.sync-pill{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t3);padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--bg2);cursor:pointer;transition:all .15s}
+.sync-pill:hover{border-color:var(--border2);color:var(--t1)}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--t3);flex-shrink:0;transition:background .3s}
+
+/* ── Progress bar ── */
+.prog-wrap{margin-bottom:1.5rem}
+.prog-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.prog-lbl{font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--t3)}
+.prog-pct{font-size:13px;font-weight:700;font-family:var(--mono);color:var(--t1)}
+.prog-bar-bg{height:6px;border-radius:3px;background:var(--border2);overflow:hidden}
+.prog-bar-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,#3b82f6,#22c55e);transition:width .4s ease}
+
+/* ── Section labels ── */
+.slbl{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);margin-bottom:.75rem;display:flex;justify-content:space-between;align-items:center}
+
+/* ── Month nav ── */
+.month-nav{display:flex;align-items:center;gap:10px;margin-bottom:1.25rem}
+.mnav-btn{width:30px;height:30px;border-radius:7px;border:1px solid var(--border2);background:var(--bg2);color:var(--t1);font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
+.mnav-btn:hover{background:var(--accent-dim);border-color:var(--accent)}
+.mnav-lbl{font-size:16px;font-weight:600;color:var(--t1);flex:1}
+.mnav-today{font-size:11px;font-weight:500;padding:4px 12px;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--t3);transition:all .15s}
+.mnav-today:hover{color:var(--t1);border-color:var(--accent)}
+.mnav-today.active{background:var(--accent-dim);border-color:var(--accent);color:#93c5fd}
+
+/* ── Habit check-in cards (today) ── */
+.checkin-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:1.5rem}
+.habit-card{background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--rl);padding:.85rem 1rem;cursor:pointer;user-select:none;transition:all .2s;display:flex;align-items:center;gap:10px}
+.habit-card:hover{border-color:var(--border2)}
+.habit-card.done{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.05)}
+.habit-card.hbp-card{border-color:var(--red-border)}
+.habit-card.hbp-card.done{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.05)}
+.habit-emoji{font-size:20px;flex-shrink:0;line-height:1}
+.habit-info{flex:1;min-width:0}
+.habit-name{font-size:13px;font-weight:600;color:var(--t2);line-height:1.3;transition:color .2s}
+.habit-card.done .habit-name{color:#4ade80}
+.habit-streak{font-size:10px;color:var(--t3);margin-top:2px;font-family:var(--mono)}
+.habit-check{width:22px;height:22px;border-radius:5px;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s}
+.habit-card.done .habit-check{background:var(--green);border-color:var(--green)}
+.habit-check i{font-size:13px;color:#fff;opacity:0;transition:opacity .15s}
+.habit-card.done .habit-check i{opacity:1}
+
+/* ── HBP Banner ── */
+.hbp-banner{display:flex;align-items:center;gap:10px;background:var(--red-dim);border:1px solid var(--red-border);border-radius:var(--r);padding:.75rem 1rem;margin-bottom:.9rem;margin-top:.5rem}
+.hbp-banner-text .title{font-size:12px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:.06em}
+.hbp-banner-text .sub{font-size:10px;color:rgba(248,113,113,.65);margin-top:2px}
+
+/* ── Streak calendar grid ── */
+.cal-section{margin-bottom:1.75rem}
+.cal-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.cal-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:.75rem .85rem;min-width:0}
+.cal-card.hbp{border-color:var(--red-border);background:rgba(239,68,68,.025)}
+.cal-hdr{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px}
+.cal-emoji{font-size:17px;line-height:1.2;flex-shrink:0}
+.cal-meta{flex:1;min-width:0}
+.cal-name{font-size:12px;font-weight:600;color:var(--t1);line-height:1.3}
+.cal-stats{display:flex;gap:6px;margin-top:3px;flex-wrap:wrap}
+.cal-stat{font-size:10px;font-family:var(--mono);color:var(--t3)}
+.cal-streak-badge{font-size:10px;font-weight:700;padding:1px 6px;border-radius:6px;font-family:var(--mono)}
+.cal-days{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-dow{font-size:7px;font-weight:700;text-align:center;color:var(--t3);padding:2px 0;text-transform:uppercase;letter-spacing:.04em}
+.cal-day{aspect-ratio:1;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:500;min-height:14px;transition:all .15s}
+.cal-day.empty{background:transparent}
+.cal-day.done{background:#16a34a;color:#fff}
+.cal-day.miss{background:rgba(239,68,68,.14);color:#f87171}
+.cal-day.future{background:var(--bg3);color:var(--t3);opacity:.35}
+.cal-day.is-today{outline:2px solid var(--accent);outline-offset:1px;z-index:1;position:relative}
+.cal-day.done.is-today{outline-color:#16a34a}
+.cal-day.clickable{cursor:pointer}
+.cal-day.clickable:hover{transform:scale(1.2);z-index:2;position:relative}
+
+/* ── Sync modal ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:none;align-items:center;justify-content:center;padding:1rem}
+.modal-overlay.open{display:flex}
+.modal-box{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rl);padding:1.25rem;width:min(460px,92vw);max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.5)}
+.modal-title{font-size:15px;font-weight:600;margin-bottom:1rem;color:var(--t1)}
+.field-lbl{font-size:11px;color:var(--t3);display:block;margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em}
+.field-inp{width:100%;height:34px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--t1);padding:0 10px;font-size:12px;font-family:var(--mono);outline:none;margin-bottom:.75rem}
+.field-inp:focus{border-color:var(--accent)}
+.modal-msg{font-size:12px;min-height:16px;margin-bottom:.5rem}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.btn-cancel{height:32px;padding:0 14px;background:transparent;border:1px solid var(--border);border-radius:var(--r);color:var(--t3);font-size:12px;cursor:pointer}
+.btn-save{height:32px;padding:0 16px;background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.3);border-radius:var(--r);color:#c084fc;font-size:12px;font-weight:500;cursor:pointer}
+.btn-danger{height:32px;padding:0 14px;background:transparent;border:1px solid rgba(239,68,68,.3);border-radius:var(--r);color:#f87171;font-size:12px;cursor:pointer}
+
+/* ── Responsive ── */
+@media(max-width:540px){
+  .checkin-grid{grid-template-columns:1fr}
+  .cal-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-eyebrow">Dale's Dashboard</div>
+    <div class="hdr-row">
+      <div>
+        <div class="hdr-title">Habit Tracker</div>
+        <div class="hdr-date" id="hdr-date">Loading...</div>
+      </div>
+      <button class="sync-pill" onclick="openModal()">
+        <div class="sync-dot" id="sync-dot"></div>
+        <span id="sync-lbl">Sync</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="prog-wrap">
+    <div class="prog-row">
+      <span class="prog-lbl">Today's progress</span>
+      <span class="prog-pct" id="prog-pct">0 / 10</span>
+    </div>
+    <div class="prog-bar-bg"><div class="prog-bar-fill" id="prog-fill" style="width:0%"></div></div>
+  </div>
+
+  <!-- Month nav -->
+  <div class="month-nav">
+    <button class="mnav-btn" onclick="navMonth(-1)">‹</button>
+    <div class="mnav-lbl" id="mnav-lbl"></div>
+    <button class="mnav-today" id="mnav-today-btn" onclick="goToday()">Today</button>
+    <button class="mnav-btn" onclick="navMonth(1)">›</button>
+  </div>
+
+  <!-- Today check-in: Regular habits -->
+  <div class="slbl" id="checkin-date-lbl">Today's check-in</div>
+  <div class="checkin-grid" id="regular-checkin"></div>
+
+  <!-- HBP Banner -->
+  <div class="hbp-banner">
+    <span style="font-size:24px">🩺</span>
+    <div class="hbp-banner-text">
+      <div class="title">Blood Pressure Protocol</div>
+      <div class="sub">All 6 required every day — no exceptions</div>
+    </div>
+  </div>
+  <div class="checkin-grid" id="hbp-checkin"></div>
+
+  <!-- Regular habit calendars -->
+  <div class="cal-section">
+    <div class="slbl">Daily habits — streak view</div>
+    <div class="cal-grid" id="regular-cal-grid"></div>
+  </div>
+
+  <!-- HBP calendars -->
+  <div class="cal-section">
+    <div class="slbl" style="color:#f87171">BP protocol — streak view</div>
+    <div class="cal-grid" id="hbp-cal-grid"></div>
+  </div>
+
+</div>
+
+<!-- Sync Modal -->
+<div class="modal-overlay" id="sync-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div class="modal-title">☁ Cloud Sync — Supabase</div>
+    <details style="margin-bottom:.75rem">
+      <summary style="font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7rem;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);list-style:none">▶ Setup instructions</summary>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r);padding:.75rem 1rem;font-size:12px;line-height:1.7;color:var(--t2)">
+        1. Go to <a href="https://supabase.com" target="_blank" style="color:#c084fc">supabase.com</a> → New project<br>
+        2. SQL Editor → run:<br>
+        <code style="display:block;background:var(--bg);border-radius:5px;padding:.4rem .6rem;margin:.3rem 0;color:#4ade80;font-size:10px;white-space:pre">create table dashboard_data (
+  key text primary key,
+  value text not null,
+  updated_at timestamptz default now()
+);
+alter table dashboard_data enable row level security;
+create policy "allow all" on dashboard_data
+  for all using (true) with check (true);</code>
+        3. Settings → API → copy Project URL + anon key
+      </div>
+    </details>
+    <label class="field-lbl">Project URL</label>
+    <input class="field-inp" id="sync-url" placeholder="https://xxxx.supabase.co">
+    <label class="field-lbl">Anon Key</label>
+    <input class="field-inp" id="sync-key" placeholder="eyJhbGc...">
+    <div class="modal-msg" id="modal-msg"></div>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-danger" id="btn-disconnect" style="display:none" onclick="disconnectSync()">Disconnect</button>
+      <button class="btn-save" onclick="connectSync()">Connect &amp; Sync</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Constants ────────────────────────────────────────────────
+const REGULAR_HABITS = [
+  { id:'steps_10k', l:'10K Steps',       emoji:'👟' },
+  { id:'water_3l',  l:'3L Water',         emoji:'💧' },
+  { id:'nofap',     l:'No Fap',           emoji:'🔥' },
+  { id:'gym',       l:'Gym',              emoji:'🏋️' },
+];
+const HBP_HABITS = [
+  { id:'bananas',    l:'2 Bananas',       emoji:'🍌' },
+  { id:'beetroot',   l:'Beet Root Supp',  emoji:'🫚' },
+  { id:'standing',   l:'Stand 30min',     emoji:'🧍' },
+  { id:'no_fried',   l:'No Fried Food',   emoji:'🍗' },
+  { id:'no_alcohol', l:'No Alcohol',      emoji:'🚫' },
+  { id:'no_chips',   l:'No Chips/Snacks', emoji:'🥔' },
+];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+// ── State ────────────────────────────────────────────────────
+const todayKey = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+const TODAY = todayKey();
+let calYear  = new Date().getFullYear();
+let calMonth = new Date().getMonth() + 1;
+let sbClient = null;
+
+// ── Storage ──────────────────────────────────────────────────
+function ls(k){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):null; }catch(e){ return null; } }
+function lss(k,v){ try{ const s=JSON.stringify(v); localStorage.setItem(k,s); if(sbClient) cloudUpsert(k,s); }catch(e){} }
+
+function getDay(dk){ return ls('hbt:'+dk) || {}; }
+function saveDay(dk, data){ lss('hbt:'+dk, data); }
+
+function toggleHabit(id, dk){
+  if(dk !== TODAY) return;
+  const d = getDay(dk);
+  d[id] = !d[id];
+  saveDay(dk, d);
+  render();
+}
+
+// ── Streak helpers ───────────────────────────────────────────
+function calcCurrentStreak(id){
+  let streak = 0;
+  const d = new Date(TODAY + 'T12:00:00');
+  // Check today first
+  if(getDay(TODAY)[id]) { streak++; d.setDate(d.getDate()-1); }
+  else { d.setDate(d.getDate()-1); }
+  for(let i=0; i<365; i++){
+    const dk = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    if(getDay(dk)[id]){ streak++; d.setDate(d.getDate()-1); }
+    else break;
+  }
+  return streak;
+}
+
+function getBestStreak(id){
+  const saved = ls('hbt-best:'+id) || 0;
+  const cur   = calcCurrentStreak(id);
+  const best  = Math.max(saved, cur);
+  if(best > saved) lss('hbt-best:'+id, best);
+  return best;
+}
+
+// ── Rendering ────────────────────────────────────────────────
+function render(){
+  renderHeader();
+  renderProgress();
+  renderCheckin();
+  renderCalendars();
+  renderMonthNav();
+}
+
+function renderHeader(){
+  const d   = new Date();
+  const el  = document.getElementById('hdr-date');
+  if(el) el.textContent = `${DAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+}
+
+function renderProgress(){
+  const day = getDay(TODAY);
+  const all = [...REGULAR_HABITS, ...HBP_HABITS];
+  const done = all.filter(h => !!day[h.id]).length;
+  const pct  = Math.round(done / all.length * 100);
+  const fill = document.getElementById('prog-fill');
+  const pctEl = document.getElementById('prog-pct');
+  if(fill){
+    fill.style.width = pct + '%';
+    fill.style.background = pct === 100 ? '#22c55e' : 'linear-gradient(90deg,#3b82f6,#22c55e)';
+  }
+  if(pctEl){
+    pctEl.textContent = pct === 100 ? '✓ All done!' : `${done} / ${all.length}`;
+    pctEl.style.color = pct === 100 ? '#4ade80' : 'var(--t1)';
+  }
+}
+
+function renderCheckin(){
+  const day = getDay(TODAY);
+  const lbl = document.getElementById('checkin-date-lbl');
+  if(lbl){
+    const d = new Date();
+    lbl.textContent = `Today — ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  }
+
+  const regEl = document.getElementById('regular-checkin');
+  if(regEl){
+    regEl.innerHTML = REGULAR_HABITS.map(h => {
+      const on     = !!day[h.id];
+      const streak = calcCurrentStreak(h.id);
+      return `<div class="habit-card${on?' done':''}" onclick="toggleHabit('${h.id}','${TODAY}')">
+        <span class="habit-emoji">${h.emoji}</span>
+        <div class="habit-info">
+          <div class="habit-name">${h.l}</div>
+          <div class="habit-streak">${streak > 0 ? '🔥 ' + streak + 'd streak' : 'No streak yet'}</div>
+        </div>
+        <div class="habit-check"><i class="ti ti-check"></i></div>
+      </div>`;
+    }).join('');
+  }
+
+  const hbpEl = document.getElementById('hbp-checkin');
+  if(hbpEl){
+    hbpEl.innerHTML = HBP_HABITS.map(h => {
+      const on     = !!day[h.id];
+      const streak = calcCurrentStreak(h.id);
+      return `<div class="habit-card hbp-card${on?' done':''}" onclick="toggleHabit('${h.id}','${TODAY}')">
+        <span class="habit-emoji">${h.emoji}</span>
+        <div class="habit-info">
+          <div class="habit-name">${h.l}</div>
+          <div class="habit-streak">${streak > 0 ? '🔥 ' + streak + 'd' : '—'}</div>
+        </div>
+        <div class="habit-check"><i class="ti ti-check"></i></div>
+      </div>`;
+    }).join('');
+  }
+}
+
+function renderCalendars(){
+  const dim      = new Date(calYear, calMonth, 0).getDate();
+  const firstDow = new Date(calYear, calMonth-1, 1).getDay();
+  const todayD   = new Date();
+  const isCurMo  = calYear === todayD.getFullYear() && calMonth === todayD.getMonth()+1;
+  const pastDays = isCurMo ? todayD.getDate() : dim;
+
+  function buildCard(h, isHBP){
+    const done = new Set();
+    for(let d=1; d<=pastDays; d++){
+      const dk = `${calYear}-${String(calMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      if(getDay(dk)[h.id]) done.add(d);
+    }
+    const streak = calcCurrentStreak(h.id);
+    const best   = getBestStreak(h.id);
+    const pct    = pastDays ? Math.round(done.size/pastDays*100) : 0;
+    const col    = pct>=90?'#4ade80':pct>=65?'#fbbf24':'#f87171';
+    const streakCol = streak>=7?'#facc15':streak>0?'#fb923c':'var(--t3)';
+
+    const DOW = ['S','M','T','W','T','F','S'];
+    let cells = DOW.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+    for(let i=0;i<firstDow;i++) cells+=`<div class="cal-day empty"></div>`;
+    for(let d=1; d<=dim; d++){
+      const dk = `${calYear}-${String(calMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const isFuture  = isCurMo && d > todayD.getDate();
+      const isToday   = dk === TODAY;
+      const isDone    = done.has(d);
+      let cls = 'cal-day';
+      if(isFuture)      cls += ' future';
+      else              cls += isDone ? ' done' : ' miss';
+      if(isToday)       cls += ' is-today';
+      if(isToday)       cls += ' clickable';
+      const handler = isToday ? `onclick="toggleHabit('${h.id}','${TODAY}')"` : '';
+      cells += `<div class="${cls}" ${handler}>${d}</div>`;
+    }
+
+    return `<div class="cal-card${isHBP?' hbp':''}">
+      <div class="cal-hdr">
+        <span class="cal-emoji">${h.emoji}</span>
+        <div class="cal-meta">
+          <div class="cal-name">${h.l}</div>
+          <div class="cal-stats">
+            <span class="cal-stat" style="color:${col}">${done.size}/${pastDays} days (${pct}%)</span>
+            ${streak>0?`<span class="cal-streak-badge" style="background:${streakCol}22;color:${streakCol}">🔥${streak}d</span>`:''}
+          </div>
+          ${best>1?`<div style="font-size:9px;color:var(--t3);margin-top:1px">Best: ${best}d</div>`:''}
+        </div>
+      </div>
+      <div class="cal-days">${cells}</div>
+    </div>`;
+  }
+
+  const regEl = document.getElementById('regular-cal-grid');
+  if(regEl) regEl.innerHTML = REGULAR_HABITS.map(h => buildCard(h, false)).join('');
+
+  const hbpEl = document.getElementById('hbp-cal-grid');
+  if(hbpEl) hbpEl.innerHTML = HBP_HABITS.map(h => buildCard(h, true)).join('');
+}
+
+function renderMonthNav(){
+  const el = document.getElementById('mnav-lbl');
+  if(el) el.textContent = `${MONTHS[calMonth-1]} ${calYear}`;
+  const btn = document.getElementById('mnav-today-btn');
+  const d = new Date();
+  const isCur = calYear === d.getFullYear() && calMonth === d.getMonth()+1;
+  if(btn) btn.classList.toggle('active', isCur);
+}
+
+function navMonth(dir){
+  calMonth += dir;
+  if(calMonth > 12){ calMonth=1; calYear++; }
+  if(calMonth < 1) { calMonth=12; calYear--; }
+  renderCalendars();
+  renderMonthNav();
+}
+
+function goToday(){
+  calYear  = new Date().getFullYear();
+  calMonth = new Date().getMonth() + 1;
+  renderCalendars();
+  renderMonthNav();
+}
+
+// ── Cloud Sync ───────────────────────────────────────────────
+function loadCfg(){ return ls('hbt-cloud-config') || null; }
+function saveCfg(cfg){ localStorage.setItem('hbt-cloud-config', JSON.stringify(cfg)); }
+
+function initSupabase(){
+  const cfg = loadCfg();
+  if(!cfg||!cfg.url||!cfg.key) return false;
+  try{ sbClient = window.supabase.createClient(cfg.url, cfg.key); return true; }
+  catch(e){ return false; }
+}
+
+async function cloudUpsert(key, valueStr){
+  if(!sbClient) return;
+  try{ await sbClient.from('dashboard_data').upsert({key, value:valueStr, updated_at:new Date().toISOString()}); }
+  catch(e){}
+}
+
+async function syncFromCloud(){
+  if(!initSupabase()){ setSyncStatus('off'); return; }
+  setSyncStatus('syncing');
+  try{
+    const {data, error} = await sbClient.from('dashboard_data').select('key,value');
+    if(error) throw error;
+    if(data && data.length){
+      data.forEach(row=>{
+        if(!row.key.startsWith('hbt-cloud-config')) localStorage.setItem(row.key, row.value);
+      });
+    }
+    setSyncStatus('ok');
+  }catch(e){ setSyncStatus('err'); }
+  render();
+}
+
+async function pushAll(){
+  if(!sbClient) return;
+  setSyncStatus('syncing');
+  const rows = [];
+  for(let i=0;i<localStorage.length;i++){
+    const k = localStorage.key(i);
+    if(k==='hbt-cloud-config') continue;
+    rows.push({key:k, value:localStorage.getItem(k), updated_at:new Date().toISOString()});
+  }
+  try{
+    for(let i=0;i<rows.length;i+=100) await sbClient.from('dashboard_data').upsert(rows.slice(i,i+100));
+    setSyncStatus('ok');
+  }catch(e){ setSyncStatus('err'); }
+}
+
+function setSyncStatus(s){
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-lbl');
+  if(!dot||!lbl) return;
+  const map = { off:{c:'var(--t3)',l:'Sync'}, syncing:{c:'#f59e0b',l:'Syncing…'}, ok:{c:'#22c55e',l:'Synced ✓'}, err:{c:'#f87171',l:'Offline'} };
+  const m = map[s]||map.off;
+  dot.style.background = m.c;
+  lbl.textContent = m.l;
+}
+
+function openModal(){
+  const cfg = loadCfg();
+  if(cfg){
+    document.getElementById('sync-url').value = cfg.url||'';
+    document.getElementById('sync-key').value = cfg.key||'';
+    document.getElementById('btn-disconnect').style.display = 'inline-block';
+  } else {
+    document.getElementById('btn-disconnect').style.display = 'none';
+  }
+  document.getElementById('modal-msg').textContent = '';
+  document.getElementById('sync-modal').classList.add('open');
+}
+
+function closeModal(){ document.getElementById('sync-modal').classList.remove('open'); }
+
+async function connectSync(){
+  const url = document.getElementById('sync-url').value.trim();
+  const key = document.getElementById('sync-key').value.trim();
+  const msg = document.getElementById('modal-msg');
+  if(!url||!key){ msg.style.color='#f87171'; msg.textContent='Both fields required.'; return; }
+  msg.style.color='var(--t3)'; msg.textContent='Testing…';
+  try{
+    const client = window.supabase.createClient(url, key);
+    const {error} = await client.from('dashboard_data').select('key').limit(1);
+    if(error) throw error;
+    saveCfg({url, key});
+    sbClient = client;
+    msg.style.color='#4ade80'; msg.textContent='Connected! Pushing data…';
+    await pushAll();
+    msg.textContent='All synced ✓';
+    document.getElementById('btn-disconnect').style.display='inline-block';
+    setTimeout(()=>closeModal(), 1200);
+  }catch(e){ msg.style.color='#f87171'; msg.textContent='Connection failed — check URL and key.'; }
+}
+
+function disconnectSync(){
+  localStorage.removeItem('hbt-cloud-config');
+  sbClient = null;
+  setSyncStatus('off');
+  closeModal();
+}
+
+// ── Init ─────────────────────────────────────────────────────
+syncFromCloud();
+</script>
+</body>
+</html>
