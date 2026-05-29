@@ -228,17 +228,19 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
   <div class="period-section">
     <div class="sec-hdr" style="margin-top:.25rem">
       <span class="sec-lbl">Weekly habits</span>
-      <span style="font-size:10px;color:var(--t3)">once per week</span>
+      <button class="add-btn" onclick="openAdd('weekly')">+ Add</button>
     </div>
     <div id="weekly-table"></div>
 
     <div class="sec-hdr" style="margin-top:.5rem">
       <span class="sec-lbl">Every 2 weeks</span>
+      <button class="add-btn" onclick="openAdd('biweekly')">+ Add</button>
     </div>
     <div id="biweekly-table"></div>
 
     <div class="sec-hdr" style="margin-top:.5rem">
       <span class="sec-lbl">Monthly</span>
+      <button class="add-btn" onclick="openAdd('monthly')">+ Add</button>
     </div>
     <div id="monthly-table"></div>
   </div>
@@ -260,7 +262,7 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
       <label>Habit name</label>
       <input id="inp-name" placeholder="e.g. No Sugar" onkeydown="if(event.key==='Enter')saveAdd()">
     </div>
-    <div class="field">
+    <div class="field" id="cat-field">
       <label>Category</label>
       <div class="cat-pills">
         <button class="cat-pill sel-reg" id="cat-reg" onclick="setCat('regular')">📋 Regular</button>
@@ -470,13 +472,17 @@ function renderCals(habits){
 }
 
 // ── Add modal ────────────────────────────────────────────────
+const PERIOD_LABELS={regular:'Add Habit',hbp:'Add BP Habit',weekly:'Add Weekly Habit',biweekly:'Add Bi-Weekly Habit',monthly:'Add Monthly Habit'};
+
 function openAdd(cat){
   addCat=cat||'regular';
   document.getElementById('inp-emoji').value='';
   document.getElementById('inp-name').value='';
   document.getElementById('emoji-preview').textContent='❓';
-  setCat(addCat);
-  document.getElementById('add-title').textContent=addCat==='hbp'?'Add BP Habit':'Add Habit';
+  const isPeriodic=['weekly','biweekly','monthly'].includes(addCat);
+  document.getElementById('cat-field').style.display=isPeriodic?'none':'block';
+  if(!isPeriodic) setCat(addCat);
+  document.getElementById('add-title').textContent=PERIOD_LABELS[addCat]||'Add Habit';
   document.getElementById('add-modal').classList.add('open');
   setTimeout(()=>document.getElementById('inp-emoji').focus(),80);
 }
@@ -494,22 +500,30 @@ function saveAdd(){
   const emoji=document.getElementById('inp-emoji').value.trim();
   const name=document.getElementById('inp-name').value.trim();
   if(!name){document.getElementById('inp-name').focus();return;}
-  const habits=getHabits();
-  habits.push({id:'h'+Date.now(), emoji:emoji||'⭐', label:name, cat:addCat});
-  setHabits(habits);
-  closeAdd();
-  render();
+  if(['weekly','biweekly','monthly'].includes(addCat)){
+    addPH(addCat, emoji||'⭐', name);
+  } else {
+    const habits=getHabits();
+    habits.push({id:'h'+Date.now(), emoji:emoji||'⭐', label:name, cat:addCat});
+    setHabits(habits);
+  }
+  closeAdd(); render();
 }
 
 // ── Delete modal ─────────────────────────────────────────────
-function askDel(id,label){
-  pendingDelId=id;
+let pendingDelType='daily';
+
+function askDel(id,label,type='daily'){
+  pendingDelId=id; pendingDelType=type;
   document.getElementById('del-body').textContent=`Remove "${label}"? Past streak data is kept.`;
   document.getElementById('del-modal').classList.add('open');
 }
 function closeDel(){document.getElementById('del-modal').classList.remove('open');pendingDelId=null;}
 function confirmDel(){
-  if(pendingDelId){setHabits(getHabits().filter(h=>h.id!==pendingDelId));}
+  if(pendingDelId){
+    if(pendingDelType==='daily') setHabits(getHabits().filter(h=>h.id!==pendingDelId));
+    else delPH(pendingDelType, pendingDelId);
+  }
   closeDel(); render();
 }
 
@@ -534,18 +548,34 @@ function doDisconnect(){localStorage.removeItem('hbt-cfg');sbClient=null;setSS('
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.overlay.open').forEach(m=>m.classList.remove('open'));});
 
 // ── Periodic habits ──────────────────────────────────────────
-const WEEKLY_HABITS = [
-  {id:'sheets',  emoji:'🛏️', label:'Wash bed sheets'},
-  {id:'desk',    emoji:'🗒️', label:'Clean desk'},
-  {id:'clutter', emoji:'🧹', label:'Clean clutter'},
-  {id:'fast24',  emoji:'⏳', label:'24-hour fast'},
-];
-const BIWEEKLY_HABITS = [
-  {id:'haircut', emoji:'✂️', label:'Haircut'},
-];
-const MONTHLY_HABITS = [
-  {id:'fast48',  emoji:'🍽️', label:'48-hour fast'},
-];
+const PH_DEFAULTS = {
+  weekly: [
+    {id:'sheets',  emoji:'🛏️', label:'Wash bed sheets'},
+    {id:'desk',    emoji:'🗒️', label:'Clean desk'},
+    {id:'clutter', emoji:'🧹', label:'Clean clutter'},
+    {id:'fast24',  emoji:'⏳', label:'24-hour fast'},
+  ],
+  biweekly: [
+    {id:'haircut', emoji:'✂️', label:'Haircut'},
+  ],
+  monthly: [
+    {id:'fast48',  emoji:'🍽️', label:'48-hour fast'},
+  ],
+};
+
+function getPHAll(){
+  const s=ls('hbt-ph');
+  if(!s) return JSON.parse(JSON.stringify(PH_DEFAULTS));
+  return {
+    weekly:   s.weekly   ?? PH_DEFAULTS.weekly,
+    biweekly: s.biweekly ?? PH_DEFAULTS.biweekly,
+    monthly:  s.monthly  ?? PH_DEFAULTS.monthly,
+  };
+}
+function getPH(type){ return getPHAll()[type]||[]; }
+function setPH(type,arr){ const all=getPHAll(); all[type]=arr; lss('hbt-ph',all); }
+function addPH(type,emoji,label){ const arr=getPH(type); arr.push({id:'p'+Date.now(),emoji:emoji||'⭐',label}); setPH(type,arr); }
+function delPH(type,id){ setPH(type, getPH(type).filter(h=>h.id!==id)); }
 
 function getPeriodic(y,m){ return ls(`hbt-p:${y}-${String(m).padStart(2,'0')}`)||{}; }
 function savePeriodic(y,m,d){ lss(`hbt-p:${y}-${String(m).padStart(2,'0')}`,d); }
@@ -586,98 +616,100 @@ function renderPeriodic(){
   // ── Weekly table ──────────────────────────────────────────
   const we=document.getElementById('weekly-table');
   if(we){
-    // column sizes: name col + one col per week
-    const cols=`grid-template-columns:1fr ${' 54px'.repeat(nw)}`;
-
-    // header row
-    let hdr=`<div class="pt-hdr">Habit</div>`;
-    for(let w=1;w<=nw;w++){
-      const cur=w===cw;
-      hdr+=`<div class="pt-hdr${cur?' cur':''}" style="text-align:center">
-        W${w}<div style="font-size:8px;font-weight:400;margin-top:1px;letter-spacing:0">${weekRange(calYear,calMonth,w)}</div>
-      </div>`;
-    }
-
-    // habit rows
-    const rows=WEEKLY_HABITS.map(h=>{
-      let cells='';
+    const habits=getPH('weekly');
+    if(!habits.length){
+      we.innerHTML='<div class="empty-state" style="margin-bottom:8px"><span class="empty-icon">📋</span>No weekly habits yet.</div>';
+    } else {
+      const cols=`grid-template-columns:1fr${' 54px'.repeat(nw)}`;
+      let hdr=`<div class="pt-hdr">Habit</div>`;
       for(let w=1;w<=nw;w++){
-        const isFut=isCur&&w>cw;
-        const isPast=isCur&&w<cw;
-        const checked=!!(d.weekly&&d.weekly[w]&&d.weekly[w][h.id]);
-        if(isFut){
-          cells+=`<div class="pt-col"><span class="fut-dash">—</span></div>`;
-        } else {
-          let cls='pcheck';
-          if(checked)cls+=' on';
-          else if(w===cw)cls+=' cur-period';
-          else if(isPast)cls+=' past-miss';
-          cells+=`<div class="pt-col"><div class="${cls}" onclick="togglePeriodic('weekly','${h.id}',${w})"><i class="ti ti-check"></i></div></div>`;
-        }
+        const cur=w===cw;
+        hdr+=`<div class="pt-hdr${cur?' cur':''}" style="text-align:center">W${w}<div style="font-size:8px;font-weight:400;margin-top:1px;letter-spacing:0">${weekRange(calYear,calMonth,w)}</div></div>`;
       }
-      return `<div class="pt-row" style="${cols}">
-        <div class="pt-cell"><span style="font-size:15px">${h.emoji}</span>${h.label}</div>
-        ${cells}
-      </div>`;
-    }).join('');
-
-    we.innerHTML=`<div class="period-table">
-      <div class="pt-header" style="${cols}">${hdr}</div>${rows}
-    </div>`;
+      const rows=habits.map(h=>{
+        let cells='';
+        for(let w=1;w<=nw;w++){
+          const isFut=isCur&&w>cw, isPast=isCur&&w<cw;
+          const checked=!!(d.weekly&&d.weekly[w]&&d.weekly[w][h.id]);
+          if(isFut){ cells+=`<div class="pt-col"><span class="fut-dash">—</span></div>`; }
+          else {
+            let cls='pcheck';
+            if(checked)cls+=' on';
+            else if(w===cw)cls+=' cur-period';
+            else if(isPast)cls+=' past-miss';
+            cells+=`<div class="pt-col"><div class="${cls}" onclick="togglePeriodic('weekly','${h.id}',${w})"><i class="ti ti-check"></i></div></div>`;
+          }
+        }
+        return `<div class="pt-row" style="${cols}">
+          <div class="pt-cell" style="gap:6px">
+            <span style="font-size:15px">${h.emoji}</span>${h.label}
+            <button class="del-btn" style="opacity:0;position:static;margin-left:auto" onclick="askDel('${h.id}','${h.label.replace(/'/g,"&#39;")}','weekly')" title="Remove"><i class="ti ti-x"></i></button>
+          </div>${cells}
+        </div>`;
+      }).join('');
+      we.innerHTML=`<div class="period-table"><div class="pt-header" style="${cols}">${hdr}</div>${rows}</div>`;
+    }
   }
 
   // ── Bi-weekly table ───────────────────────────────────────
   const be=document.getElementById('biweekly-table');
   if(be){
-    const cols='grid-template-columns:1fr 100px 100px';
-    const periods=[
-      {p:1,label:'Weeks 1–2',minW:1,maxW:2},
-      {p:2,label:'Weeks 3–4',minW:3,maxW:4},
-    ];
-    let hdr=`<div class="pt-hdr">Habit</div>`;
-    periods.forEach(p=>{
-      const cur=isCur&&cw>=p.minW&&cw<=p.maxW;
-      hdr+=`<div class="pt-hdr${cur?' cur':''}" style="text-align:center">${p.label}</div>`;
-    });
-    const rows=BIWEEKLY_HABITS.map(h=>{
-      let cells='';
+    const habits=getPH('biweekly');
+    if(!habits.length){
+      be.innerHTML='<div class="empty-state" style="margin-bottom:8px"><span class="empty-icon">📅</span>No bi-weekly habits yet.</div>';
+    } else {
+      const cols='grid-template-columns:1fr 100px 100px';
+      const periods=[{p:1,label:'Weeks 1–2',minW:1,maxW:2},{p:2,label:'Weeks 3–4',minW:3,maxW:4}];
+      let hdr=`<div class="pt-hdr">Habit</div>`;
       periods.forEach(p=>{
-        const isFut=isCur&&cw<p.minW;
-        const isCurP=isCur&&cw>=p.minW&&cw<=p.maxW;
-        const checked=!!(d.biweekly&&d.biweekly[p.p]&&d.biweekly[p.p][h.id]);
-        if(isFut){
-          cells+=`<div class="pt-col"><span class="fut-dash">—</span></div>`;
-        } else {
-          let cls='pcheck';
-          if(checked)cls+=' on';
-          else if(isCurP)cls+=' cur-period';
-          else if(!checked&&!isCurP)cls+=' past-miss';
-          cells+=`<div class="pt-col"><div class="${cls}" onclick="togglePeriodic('biweekly','${h.id}',${p.p})"><i class="ti ti-check"></i></div></div>`;
-        }
+        const cur=isCur&&cw>=p.minW&&cw<=p.maxW;
+        hdr+=`<div class="pt-hdr${cur?' cur':''}" style="text-align:center">${p.label}</div>`;
       });
-      return `<div class="pt-row" style="${cols}">
-        <div class="pt-cell"><span style="font-size:15px">${h.emoji}</span>${h.label}</div>${cells}
-      </div>`;
-    }).join('');
-    be.innerHTML=`<div class="period-table">
-      <div class="pt-header" style="${cols}">${hdr}</div>${rows}
-    </div>`;
+      const rows=habits.map(h=>{
+        let cells='';
+        periods.forEach(p=>{
+          const isFut=isCur&&cw<p.minW, isCurP=isCur&&cw>=p.minW&&cw<=p.maxW;
+          const checked=!!(d.biweekly&&d.biweekly[p.p]&&d.biweekly[p.p][h.id]);
+          if(isFut){ cells+=`<div class="pt-col"><span class="fut-dash">—</span></div>`; }
+          else {
+            let cls='pcheck';
+            if(checked)cls+=' on';
+            else if(isCurP)cls+=' cur-period';
+            else cls+=' past-miss';
+            cells+=`<div class="pt-col"><div class="${cls}" onclick="togglePeriodic('biweekly','${h.id}',${p.p})"><i class="ti ti-check"></i></div></div>`;
+          }
+        });
+        return `<div class="pt-row" style="${cols}">
+          <div class="pt-cell">
+            <span style="font-size:15px">${h.emoji}</span>${h.label}
+            <button class="del-btn" style="opacity:0;position:static;margin-left:auto" onclick="askDel('${h.id}','${h.label.replace(/'/g,"&#39;")}','biweekly')" title="Remove"><i class="ti ti-x"></i></button>
+          </div>${cells}
+        </div>`;
+      }).join('');
+      be.innerHTML=`<div class="period-table"><div class="pt-header" style="${cols}">${hdr}</div>${rows}</div>`;
+    }
   }
 
   // ── Monthly ───────────────────────────────────────────────
   const me=document.getElementById('monthly-table');
   if(me){
-    me.innerHTML=MONTHLY_HABITS.map(h=>{
-      const checked=!!(d.monthly&&d.monthly[h.id]);
-      return `<div class="monthly-row${checked?' done':''}" onclick="togglePeriodic('monthly','${h.id}',0)">
-        <span class="mr-emoji">${h.emoji}</span>
-        <div class="mr-info">
-          <div class="mr-name">${h.label}</div>
-          <div class="mr-sub">${MONTHS[calMonth-1]} ${calYear} · ${checked?'✓ Done this month':'Not done yet'}</div>
-        </div>
-        <div class="mr-check"><i class="ti ti-check"></i></div>
-      </div>`;
-    }).join('');
+    const habits=getPH('monthly');
+    if(!habits.length){
+      me.innerHTML='<div class="empty-state"><span class="empty-icon">📆</span>No monthly habits yet.</div>';
+    } else {
+      me.innerHTML=habits.map(h=>{
+        const checked=!!(d.monthly&&d.monthly[h.id]);
+        return `<div class="monthly-row${checked?' done':''}" style="position:relative">
+          <span class="mr-emoji">${h.emoji}</span>
+          <div class="mr-info" onclick="togglePeriodic('monthly','${h.id}',0)" style="cursor:pointer;flex:1">
+            <div class="mr-name">${h.label}</div>
+            <div class="mr-sub">${MONTHS[calMonth-1]} ${calYear} · ${checked?'✓ Done this month':'Not done yet'}</div>
+          </div>
+          <div class="mr-check" onclick="togglePeriodic('monthly','${h.id}',0)" style="cursor:pointer"><i class="ti ti-check"></i></div>
+          <button class="del-btn" style="position:absolute;top:6px;right:6px" onclick="askDel('${h.id}','${h.label.replace(/'/g,"&#39;")}','monthly')" title="Remove"><i class="ti ti-x"></i></button>
+        </div>`;
+      }).join('');
+    }
   }
 }
 
