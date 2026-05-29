@@ -476,17 +476,55 @@ function setHabits(a){lss('hbt-habits',a);}
 
 // ── Daily data ───────────────────────────────────────────────
 function getDay(dk){return ls('hbt:'+dk)||{};}
-function toggle(id,dk){if(dk!==TODAY)return;const d=getDay(dk);d[id]=!d[id];lss('hbt:'+dk,d);render();}
+
+// ── Linked habits — share keys with main dashboard ───────────
+// These read/write the SAME localStorage keys as the main dashboard.
+// Connect both apps to the same Supabase project and they stay in sync.
+const LINKED = {
+  steps_10k:{
+    read: dk => parseInt((ls('metrics:'+dk)||{}).steps||0) >= 10000,
+    write:(dk,val)=>{ const m=ls('metrics:'+dk)||{}; m.steps=val?10000:0; lss('metrics:'+dk,m); }
+  },
+  water_3l:{
+    read: dk => parseFloat((ls('metrics:'+dk)||{}).water||0) >= 3,
+    write:(dk,val)=>{ const m=ls('metrics:'+dk)||{}; m.water=val?3:0; lss('metrics:'+dk,m); }
+  },
+  nofap:{
+    read: dk => !!((ls('habits:'+dk)||{}).nofap),
+    write:(dk,val)=>{ const h=ls('habits:'+dk)||{}; h.nofap=val; lss('habits:'+dk,h); }
+  },
+  gym:{
+    read: dk => { const s=ls('workout-session:'+dk); return !!(s&&s.completedAt); },
+    write:(dk,val)=>{
+      const s=ls('workout-session:'+dk)||{day:'push',exercises:[],cardio:{min:30,done:false},abs:{name:'Decline Crunches',sets:3,reps:8,done:false}};
+      if(val) s.completedAt=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+      else delete s.completedAt;
+      lss('workout-session:'+dk,s);
+    }
+  }
+};
+
+function readHabit(id,dk){ return LINKED[id] ? LINKED[id].read(dk) : !!(getDay(dk)[id]); }
+function writeHabit(id,dk,val){
+  if(LINKED[id]){ LINKED[id].write(dk,val); }
+  else { const d=getDay(dk); d[id]=val; lss('hbt:'+dk,d); }
+}
+
+function toggle(id,dk){
+  if(dk!==TODAY)return;
+  writeHabit(id,dk,!readHabit(id,dk));
+  render();
+}
 
 // ── Streak ───────────────────────────────────────────────────
 function streak(id){
-  if(!getDay(TODAY)[id])return 0;
+  if(!readHabit(id,TODAY))return 0;
   let n=1;
   const d=new Date(TODAY+'T12:00:00');
   d.setDate(d.getDate()-1);
   for(let i=0;i<365;i++){
     const dk=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-    if(getDay(dk)[id]){n++;d.setDate(d.getDate()-1);}else break;
+    if(readHabit(id,dk)){n++;d.setDate(d.getDate()-1);}else break;
   }
   return n;
 }
@@ -527,7 +565,7 @@ function render(){
 }
 
 function cardHTML(h, day){
-  const on=!!day[h.id], s=streak(h.id);
+  const on=readHabit(h.id,TODAY), s=streak(h.id);
   return`<div class="habit-card${on?' done':''}${h.cat==='hbp'?' hbp':''}" onclick="toggle('${h.id}','${TODAY}')">
     <button class="del-btn" onclick="event.stopPropagation();askDel('${h.id}','${h.label.replace(/'/g,"&#39;")}')" title="Remove"><i class="ti ti-x"></i></button>
     <span class="habit-emoji">${h.emoji}</span>
@@ -558,7 +596,7 @@ function buildCal(h){
   const done=new Set();
   for(let d=1;d<=past;d++){
     const dk=`${calYear}-${String(calMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    if(getDay(dk)[h.id])done.add(d);
+    if(readHabit(h.id,dk))done.add(d);
   }
   const s=streak(h.id), b=best(h.id);
   const pct=past?Math.round(done.size/past*100):0;
@@ -958,11 +996,11 @@ let pMode='focus', pTotal=1500, pRem=1500, pRun=false, pTick=null;
 let pSess=[], pAllTime=0;
 
 function loadPomo(){
-  const d=ls('hbt-pomo:'+TODAY);
+  const d=ls('pomo:'+TODAY);  // same key as main dashboard
   if(d){pSess=d.sessions||[];}else{pSess=[];}
-  pAllTime=ls('hbt-pomo:alltime')||0;
+  pAllTime=ls('pomo:alltime')||0;
 }
-function savePomo(){ lss('hbt-pomo:'+TODAY,{sessions:pSess}); lss('hbt-pomo:alltime',pAllTime); }
+function savePomo(){ lss('pomo:'+TODAY,{sessions:pSess,focusMins:pSess.length*25}); lss('pomo:alltime',pAllTime); }
 
 function setPomoMode(m,mins){
   if(pRun)return;
