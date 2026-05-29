@@ -163,6 +163,41 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
 @media(max-width:500px){
   .checkin-grid,.cal-grid{grid-template-columns:1fr}
 }
+
+/* ── Emoji picker ── */
+.ep-wrap{margin-top:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);overflow:hidden}
+.ep-cats{display:flex;gap:2px;padding:5px 6px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.ep-cat{padding:3px 8px;border-radius:12px;border:none;background:transparent;color:var(--t3);font-size:11px;cursor:pointer;transition:all .15s}
+.ep-cat:hover{color:var(--t1)}
+.ep-cat.active{background:var(--accent-dim);color:#93c5fd}
+.ep-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:1px;padding:6px;max-height:140px;overflow-y:auto}
+.ep-btn{font-size:20px;padding:5px;border:none;background:transparent;border-radius:5px;cursor:pointer;text-align:center;line-height:1;transition:background .1s}
+.ep-btn:hover{background:var(--border2)}
+
+/* ── Import / Export bar ── */
+.io-bar{display:flex;gap:6px;margin-bottom:1.25rem;padding:.5rem .75rem;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);align-items:center}
+.io-lbl{font-size:11px;color:var(--t3);flex:1}
+.io-btn{height:26px;padding:0 12px;font-size:11px;font-weight:500;border-radius:var(--r);cursor:pointer;border:1px solid;transition:all .15s;display:flex;align-items:center;gap:4px;white-space:nowrap}
+.io-export{background:rgba(59,130,246,.08);border-color:rgba(59,130,246,.25);color:#60a5fa}
+.io-export:hover{background:rgba(59,130,246,.18)}
+.io-import{background:rgba(34,197,94,.06);border-color:rgba(34,197,94,.2);color:#4ade80}
+.io-import:hover{background:rgba(34,197,94,.14)}
+
+/* ── Push-Up Card ── */
+.pu-card{background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--rl);padding:.75rem 1rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.pu-card.all-done{border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.04)}
+.pu-left{display:flex;align-items:center;gap:8px;flex:1;min-width:120px}
+.pu-title{font-size:13px;font-weight:600;color:var(--t2);transition:color .2s}
+.pu-card.all-done .pu-title{color:#4ade80}
+.pu-sub{font-size:10px;color:var(--t3);margin-top:1px}
+.pu-sets{display:flex;gap:6px}
+.pu-set{width:58px;border-radius:var(--r);border:1.5px solid var(--border2);background:var(--bg3);padding:.45rem .25rem;cursor:pointer;user-select:none;text-align:center;transition:all .2s;display:flex;flex-direction:column;align-items:center;gap:2px}
+.pu-set:hover{border-color:var(--border2);background:var(--bgh)}
+.pu-set.done{border-color:rgba(34,197,94,.45);background:rgba(34,197,94,.08)}
+.pu-set-num{font-size:16px;font-weight:800;font-family:var(--mono);color:var(--t3);line-height:1;transition:color .2s}
+.pu-set.done .pu-set-num{color:#4ade80}
+.pu-set-lbl{font-size:9px;font-weight:600;color:var(--t3);letter-spacing:.04em;transition:color .2s}
+.pu-set.done .pu-set-lbl{color:#4ade80}
 </style>
 </head>
 <body>
@@ -178,6 +213,14 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
       <div class="sync-dot" id="sync-dot"></div>
       <span id="sync-lbl">Sync</span>
     </button>
+  </div>
+
+  <!-- Import / Export -->
+  <div class="io-bar">
+    <span class="io-lbl">💾 Data backup</span>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)">
+    <button class="io-btn io-import" onclick="document.getElementById('import-file').click()">⬆ Import</button>
+    <button class="io-btn io-export" onclick="exportData()">⬇ Export</button>
   </div>
 
   <div class="prog-wrap">
@@ -201,6 +244,22 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
     <button class="add-btn" onclick="openAdd('regular')">+ Add habit</button>
   </div>
   <div class="checkin-grid" id="reg-checkin"></div>
+
+  <!-- Push-up card -->
+  <div class="pu-card" id="pu-card">
+    <div class="pu-left">
+      <span style="font-size:20px">💪</span>
+      <div>
+        <div class="pu-title">Push-ups</div>
+        <div class="pu-sub">3 sets · 25 reps each</div>
+      </div>
+    </div>
+    <div class="pu-sets">
+      <div class="pu-set" id="pu-s1" onclick="togglePushup(1)"><div class="pu-set-num">25</div><div class="pu-set-lbl">SET 1</div></div>
+      <div class="pu-set" id="pu-s2" onclick="togglePushup(2)"><div class="pu-set-num">25</div><div class="pu-set-lbl">SET 2</div></div>
+      <div class="pu-set" id="pu-s3" onclick="togglePushup(3)"><div class="pu-set-num">25</div><div class="pu-set-lbl">SET 3</div></div>
+    </div>
+  </div>
 
   <!-- HBP -->
   <div class="hbp-banner">
@@ -253,9 +312,13 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
     <div class="modal-title" id="add-title">Add Habit</div>
     <div class="field">
       <label>Emoji</label>
-      <div class="emoji-row">
-        <div class="emoji-preview" id="emoji-preview">❓</div>
-        <input id="inp-emoji" placeholder="Paste emoji  e.g. 🏃" maxlength="4" oninput="previewEmoji()" style="width:130px;flex-shrink:0">
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="emoji-preview" id="emoji-preview" onclick="toggleEP()" title="Click to pick" style="cursor:pointer;border:1px solid var(--border2)">❓</div>
+        <input id="inp-emoji" placeholder="Or type / paste emoji" maxlength="4" oninput="previewEmoji()" style="flex:1">
+      </div>
+      <div id="ep-wrap" class="ep-wrap" style="display:none">
+        <div class="ep-cats" id="ep-cats"></div>
+        <div class="ep-grid" id="ep-grid"></div>
       </div>
     </div>
     <div class="field">
@@ -395,6 +458,7 @@ function render(){
   renderCheckin(habits, day);
   renderCals(habits);
   renderPeriodic();
+  renderPushup();
 }
 
 function cardHTML(h, day){
@@ -486,7 +550,10 @@ function openAdd(cat){
   document.getElementById('add-modal').classList.add('open');
   setTimeout(()=>document.getElementById('inp-emoji').focus(),80);
 }
-function closeAdd(){document.getElementById('add-modal').classList.remove('open');}
+function closeAdd(){
+  document.getElementById('add-modal').classList.remove('open');
+  const ep=document.getElementById('ep-wrap');if(ep)ep.style.display='none';
+}
 function setCat(c){
   addCat=c;
   document.getElementById('cat-reg').className='cat-pill'+(c==='regular'?' sel-reg':'');
@@ -545,7 +612,7 @@ function closeSyncModal(){document.getElementById('sync-modal').classList.remove
 async function doConnect(){const url=document.getElementById('sync-url').value.trim(),key=document.getElementById('sync-key').value.trim(),msg=document.getElementById('sync-msg');if(!url||!key){msg.style.color='#f87171';msg.textContent='Both fields required.';return;}msg.style.color='var(--t3)';msg.textContent='Testing…';try{const client=window.supabase.createClient(url,key);const{error}=await client.from('dashboard_data').select('key').limit(1);if(error)throw error;scfg({url,key});sbClient=client;msg.style.color='#4ade80';msg.textContent='Connected! Pushing data…';await pushAll();msg.textContent='All synced ✓';document.getElementById('btn-disconnect').style.display='inline-block';setTimeout(()=>closeSyncModal(),1200);}catch(e){msg.style.color='#f87171';msg.textContent='Connection failed.';}}
 function doDisconnect(){localStorage.removeItem('hbt-cfg');sbClient=null;setSS('off');closeSyncModal();}
 
-document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.overlay.open').forEach(m=>m.classList.remove('open'));});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){document.querySelectorAll('.overlay.open').forEach(m=>m.classList.remove('open'));const ep=document.getElementById('ep-wrap');if(ep)ep.style.display='none';}});
 
 // ── Periodic habits ──────────────────────────────────────────
 const PH_DEFAULTS = {
@@ -711,6 +778,113 @@ function renderPeriodic(){
       }).join('');
     }
   }
+}
+
+// ── Emoji picker ──────────────────────────────────────────────
+const EP_SETS = [
+  {cat:'💪 Fitness',  list:['🏋️','💪','🤸','🧘','🏊','🚴','🏃','🥊','🤼','🧗','🏅','🥇','🏆','⚽','🏀','🎯','🎱','🤾','🏇','🧜']},
+  {cat:'❤️ Health',   list:['🩺','💊','🫀','🧬','🩸','🦷','👁️','🧠','😴','🌡️','💉','🩹','🧪','🏥','🛌']},
+  {cat:'🥗 Food',     list:['🥗','🥦','🍎','🥑','🍌','🥕','💧','🫐','🍇','🥩','🫘','🥚','🌾','🥜','🧃','🍵','🥣','🧅','🫛','🥝']},
+  {cat:'🏠 Home',     list:['🛏️','🧹','🗒️','✂️','🪥','🚿','🧼','🪴','🏠','🪣','🧺','📦','🗑️','🪞','🧽','🛁','🪑','🚪','🖼️','🕯️']},
+  {cat:'📚 Mind',     list:['📚','✍️','🎧','📵','🌅','🌙','⭐','🌊','🌿','☀️','🧘','🎯','📝','🗺️','🔬','🎨','🎵','♟️','🃏','🎮']},
+  {cat:'💰 Finance',  list:['💰','💳','📈','💵','🏦','💎','📊','🤑','💼','📉','🪙','🏧','💹','📑','🤝']},
+  {cat:'✅ Goals',    list:['✅','❌','🚫','💯','🔥','⚡','🎉','🏆','⏰','⏳','📅','🗓️','🔑','🚀','💡','🎪','🌟','⭐','🌈','🦋']},
+  {cat:'🧘 Wellness', list:['🧘','🌸','🫧','🛀','☕','🍃','🌺','🌻','🦋','🕊️','🌙','🌤️','🌊','🏔️','🌲','🌾','🍀','💆','🫁','🦷']},
+];
+let epCat = 0;
+
+function buildEP(){
+  const cats=document.getElementById('ep-cats');
+  const grid=document.getElementById('ep-grid');
+  if(!cats||!grid)return;
+  cats.innerHTML=EP_SETS.map((s,i)=>`<button class="ep-cat${i===epCat?' active':''}" onclick="setEPCat(${i})">${s.cat}</button>`).join('');
+  grid.innerHTML=EP_SETS[epCat].list.map(e=>`<button class="ep-btn" onclick="pickEmoji('${e}')">${e}</button>`).join('');
+}
+function setEPCat(i){epCat=i;buildEP();}
+function toggleEP(){
+  const w=document.getElementById('ep-wrap');
+  if(!w)return;
+  const open=w.style.display==='none';
+  w.style.display=open?'block':'none';
+  if(open)buildEP();
+}
+function pickEmoji(e){
+  document.getElementById('inp-emoji').value=e;
+  document.getElementById('emoji-preview').textContent=e;
+  document.getElementById('ep-wrap').style.display='none';
+}
+function previewEmoji(){
+  const v=document.getElementById('inp-emoji').value.trim();
+  document.getElementById('emoji-preview').textContent=v||'❓';
+}
+
+// ── 75-Day Push-Up Challenge ──────────────────────────────────
+function getPushup(dk){ return (getDay(dk).pu75)||{}; }
+function isPushupAllDone(dk){ const p=getPushup(dk); return !!(p.s1&&p.s2&&p.s3); }
+
+function togglePushup(set){
+  const day=getDay(TODAY);
+  if(!day.pu75)day.pu75={};
+  day.pu75['s'+set]=!day.pu75['s'+set];
+  lss('hbt:'+TODAY,day);
+  renderPushup();
+}
+
+function pushupStreak(){
+  if(!isPushupAllDone(TODAY))return 0;
+  let n=1;
+  const d=new Date(TODAY+'T12:00:00');
+  d.setDate(d.getDate()-1);
+  for(let i=0;i<365;i++){
+    const dk=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    if(isPushupAllDone(dk)){n++;d.setDate(d.getDate()-1);}else break;
+  }
+  return n;
+}
+
+function renderPushup(){
+  const p=getPushup(TODAY);
+  [1,2,3].forEach(s=>{
+    const el=document.getElementById('pu-s'+s);
+    if(el)el.classList.toggle('done',!!p['s'+s]);
+  });
+  const card=document.getElementById('pu-card');
+  if(card)card.classList.toggle('all-done',!!(p.s1&&p.s2&&p.s3));
+}
+
+// ── Import / Export ───────────────────────────────────────────
+function exportData(){
+  const data={};
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    data[k]=localStorage.getItem(k);
+  }
+  const json=JSON.stringify(data,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  const d=new Date();
+  a.download=`habit-tracker-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.json`;
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(url);
+}
+
+function importData(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      let count=0;
+      Object.entries(data).forEach(([k,v])=>{localStorage.setItem(k,v);count++;});
+      input.value='';
+      render();
+      renderPushup();
+      alert(`✓ Imported ${count} items successfully.`);
+    }catch(err){alert('Import failed — invalid file.');}
+  };
+  reader.readAsText(file);
 }
 
 // Boot
