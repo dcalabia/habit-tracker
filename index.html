@@ -198,6 +198,30 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
 .pu-set.done .pu-set-num{color:#4ade80}
 .pu-set-lbl{font-size:9px;font-weight:600;color:var(--t3);letter-spacing:.04em;transition:color .2s}
 .pu-set.done .pu-set-lbl{color:#4ade80}
+/* ── Pomodoro Timer ── */
+.pomo-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:1rem 1.1rem;margin-bottom:1.25rem}
+.pomo-modes{display:flex;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:3px;gap:2px;margin-bottom:.9rem}
+.pomo-mode-btn{flex:1;height:26px;background:transparent;border:none;border-radius:5px;font-size:12px;font-weight:500;color:var(--t3);cursor:pointer;transition:all .15s}
+.pomo-mode-btn.active{background:var(--bg2);color:var(--t1);border:1px solid var(--border)}
+.pomo-body{display:grid;grid-template-columns:100px 1fr;gap:1.25rem;align-items:center}
+.pomo-ring-wrap{position:relative;width:100px;height:100px;flex-shrink:0}
+.pomo-ring{width:100px;height:100px}
+.pomo-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.pomo-time{font-size:20px;font-weight:700;font-family:var(--mono);line-height:1}
+.pomo-mode-lbl{font-size:9px;color:var(--t3);margin-top:2px;text-transform:uppercase;letter-spacing:.06em}
+.pomo-task-inp{width:100%;height:28px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);color:var(--t1);padding:0 10px;font-size:12px;outline:none;margin-bottom:.6rem;font-family:inherit}
+.pomo-task-inp::placeholder{color:var(--t3)}
+.pomo-controls{display:flex;gap:5px;margin-bottom:.65rem}
+.pomo-btn{height:28px;padding:0 10px;font-size:12px;border-radius:var(--r);border:1px solid var(--border2);background:transparent;color:var(--t1);display:flex;align-items:center;gap:4px;cursor:pointer;transition:background .15s}
+.pomo-btn:hover{background:var(--bg3)}
+.pomo-btn.go{background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.4);color:#93c5fd}
+.pomo-goal-row{display:flex;align-items:center;gap:6px}
+.pomo-pips{display:flex;gap:4px}
+.pomo-pip{width:18px;height:18px;border-radius:4px;border:1.5px solid var(--border2);background:transparent;transition:all .2s;flex-shrink:0}
+.pomo-pip.done{background:#378add;border-color:#378add}
+.pomo-goal-lbl{font-size:11px;color:var(--t3);font-family:var(--mono)}
+.pomo-goal-lbl.hit{color:#4ade80}
+@media(max-width:460px){.pomo-body{grid-template-columns:1fr;justify-items:center}.pomo-ring-wrap{width:90px;height:90px}.pomo-ring{width:90px;height:90px}}
 </style>
 </head>
 <body>
@@ -221,6 +245,43 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
     <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)">
     <button class="io-btn io-import" onclick="document.getElementById('import-file').click()">⬆ Import</button>
     <button class="io-btn io-export" onclick="exportData()">⬇ Export</button>
+  </div>
+
+  <!-- Pomodoro Timer -->
+  <div class="pomo-wrap">
+    <div class="pomo-modes">
+      <button class="pomo-mode-btn active" id="pm-focus" onclick="setPomoMode('focus',25)">Focus 25</button>
+      <button class="pomo-mode-btn" id="pm-short" onclick="setPomoMode('short',5)">Short 5</button>
+      <button class="pomo-mode-btn" id="pm-long" onclick="setPomoMode('long',15)">Long 15</button>
+    </div>
+    <div class="pomo-body">
+      <div class="pomo-ring-wrap">
+        <svg class="pomo-ring" viewBox="0 0 100 100">
+          <circle fill="none" stroke="rgba(255,255,255,.07)" stroke-width="6" cx="50" cy="50" r="42"/>
+          <circle id="pomo-ring-arc" fill="none" stroke="#378add" stroke-width="6" stroke-linecap="round"
+            cx="50" cy="50" r="42" stroke-dasharray="264" stroke-dashoffset="0" transform="rotate(-90 50 50)"/>
+        </svg>
+        <div class="pomo-center">
+          <div class="pomo-time" id="pomo-display">25:00</div>
+          <div class="pomo-mode-lbl" id="pomo-mode-lbl">Focus</div>
+        </div>
+      </div>
+      <div>
+        <input class="pomo-task-inp" id="pomo-task" placeholder="What are you working on?">
+        <div class="pomo-controls">
+          <button class="pomo-btn" onclick="pomoReset()"><i class="ti ti-refresh"></i></button>
+          <button class="pomo-btn go" onclick="pomoToggle()" id="pomo-start-btn">
+            <i class="ti ti-player-play" id="pomo-icon"></i>
+            <span id="pomo-start-lbl">Start</span>
+          </button>
+          <button class="pomo-btn" onclick="pomoSkip()"><i class="ti ti-player-skip-forward"></i></button>
+        </div>
+        <div class="pomo-goal-row">
+          <div class="pomo-pips" id="pomo-pips"></div>
+          <span class="pomo-goal-lbl" id="pomo-goal-lbl">0 / 4 today</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="prog-wrap">
@@ -440,9 +501,13 @@ function render(){
   const cl=document.getElementById('checkin-lbl');
   if(cl)cl.textContent=`Today — ${MONTHS[d.getMonth()]} ${d.getDate()}`;
 
-  // Progress
+  // Progress — habits + 4 pomodoros + push-up card
   const habits=getHabits(), day=getDay(TODAY);
-  const done=habits.filter(h=>!!day[h.id]).length, total=habits.length;
+  const habitDone=habits.filter(h=>!!day[h.id]).length;
+  const pomoDone=Math.min(pSess.length,POMO_GOAL);
+  const puData=getPushup(TODAY), puDone=(puData.s1&&puData.s2&&puData.s3)?1:0;
+  const done=habitDone+pomoDone+puDone;
+  const total=habits.length+POMO_GOAL+1;
   const pct=total?Math.round(done/total*100):0;
   const fill=document.getElementById('prog-fill');
   const pctEl=document.getElementById('prog-pct');
@@ -887,7 +952,100 @@ function importData(input){
   reader.readAsText(file);
 }
 
+// ── Pomodoro ──────────────────────────────────────────────────
+const POMO_GOAL = 4;
+let pMode='focus', pTotal=1500, pRem=1500, pRun=false, pTick=null;
+let pSess=[], pAllTime=0;
+
+function loadPomo(){
+  const d=ls('hbt-pomo:'+TODAY);
+  if(d){pSess=d.sessions||[];}else{pSess=[];}
+  pAllTime=ls('hbt-pomo:alltime')||0;
+}
+function savePomo(){ lss('hbt-pomo:'+TODAY,{sessions:pSess}); lss('hbt-pomo:alltime',pAllTime); }
+
+function setPomoMode(m,mins){
+  if(pRun)return;
+  pMode=m; pTotal=mins*60; pRem=mins*60;
+  ['focus','short','long'].forEach(k=>document.getElementById('pm-'+k).classList.toggle('active',k===m));
+  document.getElementById('pomo-mode-lbl').textContent={focus:'Focus',short:'Short',long:'Long'}[m];
+  document.getElementById('pomo-ring-arc').setAttribute('stroke',{focus:'#378add',short:'#22c55e',long:'#f59e0b'}[m]);
+  pomoDisp(); pomoRing();
+}
+
+function pomoToggle(){ pRun?pomoPause():pomoStart(); }
+function pomoStart(){
+  pRun=true;
+  document.getElementById('pomo-icon').className='ti ti-player-pause';
+  document.getElementById('pomo-start-lbl').textContent='Pause';
+  pTick=setInterval(pomoTick,1000);
+}
+function pomoPause(){
+  pRun=false; clearInterval(pTick);
+  document.getElementById('pomo-icon').className='ti ti-player-play';
+  document.getElementById('pomo-start-lbl').textContent='Resume';
+}
+function pomoReset(){
+  pomoPause(); pRem=pTotal;
+  document.getElementById('pomo-icon').className='ti ti-player-play';
+  document.getElementById('pomo-start-lbl').textContent='Start';
+  pomoDisp(); pomoRing();
+}
+function pomoSkip(){ pomoPause(); if(pMode==='focus')pomoComplete(); pomoReset(); }
+
+function pomoTick(){
+  pRem--;
+  if(pRem<=0){ pRem=0; pomoDisp(); pomoRing(); clearInterval(pTick); pRun=false; if(pMode==='focus')pomoComplete(); pomoAutoNext(); return; }
+  pomoDisp(); pomoRing();
+}
+
+function pomoComplete(){
+  const n=new Date(), task=document.getElementById('pomo-task').value.trim()||'Focus session';
+  const ts=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}`;
+  pSess.unshift({time:ts,task,mins:25});
+  pAllTime++;
+  savePomo();
+  pomoRenderGoal();
+  renderProgress(); // update daily progress bar
+  // Notify
+  if(Notification.permission==='granted') new Notification('Pomodoro done!',{body:task,icon:'data:,'});
+  document.getElementById('pomo-icon').className='ti ti-player-play';
+  document.getElementById('pomo-start-lbl').textContent='Start';
+}
+
+function pomoAutoNext(){
+  if(pMode==='focus'){
+    if(pSess.length>0&&pSess.length%4===0) setPomoMode('long',15);
+    else setPomoMode('short',5);
+  } else { setPomoMode('focus',25); }
+}
+
+function pomoDisp(){
+  const m=Math.floor(pRem/60), s=pRem%60;
+  document.getElementById('pomo-display').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function pomoRing(){
+  document.getElementById('pomo-ring-arc').setAttribute('stroke-dashoffset',(264*(1-pRem/pTotal)).toFixed(1));
+}
+
+function pomoRenderGoal(){
+  const n=pSess.length, met=n>=POMO_GOAL;
+  const pips=document.getElementById('pomo-pips');
+  const lbl=document.getElementById('pomo-goal-lbl');
+  if(pips) pips.innerHTML=Array.from({length:POMO_GOAL},(_,i)=>`<div class="pomo-pip${i<n?' done':''}"></div>`).join('');
+  if(lbl){ lbl.textContent=`${n} / ${POMO_GOAL} today${met?' ✓':''}`; lbl.className='pomo-goal-lbl'+(met?' hit':''); }
+}
+
+function pomoRequestNotif(){
+  if('Notification' in window && Notification.permission==='default') Notification.requestPermission();
+}
+
 // Boot
+loadPomo();
+pomoDisp();
+pomoRing();
+pomoRenderGoal();
+pomoRequestNotif();
 syncFromCloud();
 </script>
 </body>
