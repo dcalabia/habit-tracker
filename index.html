@@ -128,6 +128,38 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
 .setup-inner{background:var(--bg3);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r);padding:.75rem 1rem;font-size:12px;line-height:1.7;color:var(--t2);margin-bottom:.75rem}
 .setup-code{display:block;background:var(--bg);border-radius:5px;padding:.4rem .6rem;margin:.3rem 0;color:#4ade80;font-size:10px;white-space:pre}
 
+/* ── Periodic tracker ── */
+.period-section{margin-bottom:2rem}
+.period-table{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;margin-bottom:8px}
+.pt-header{display:grid;border-bottom:1px solid var(--border);background:rgba(0,0,0,.18)}
+.pt-row{display:grid;border-bottom:.5px solid var(--border);transition:background .1s}
+.pt-row:last-child{border-bottom:none}
+.pt-row:hover{background:var(--bgh)}
+.pt-cell{padding:.6rem .9rem;font-size:12px;display:flex;align-items:center;gap:7px;color:var(--t2)}
+.pt-hdr{padding:.45rem .9rem;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--t3)}
+.pt-hdr.cur{color:var(--accent)}
+.pt-col{display:flex;align-items:center;justify-content:center;padding:.5rem .25rem}
+.pcheck{width:28px;height:28px;border-radius:6px;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;flex-shrink:0}
+.pcheck:hover{border-color:var(--border2);background:var(--bgh)}
+.pcheck.on{background:#22c55e;border-color:#22c55e}
+.pcheck.on i{opacity:1}
+.pcheck i{font-size:13px;color:#fff;opacity:0;transition:opacity .15s}
+.pcheck.cur-period{border-color:var(--accent)}
+.pcheck.past-miss{border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.04)}
+.fut-dash{color:var(--t3);font-size:13px;opacity:.4}
+.monthly-row{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:.8rem 1rem;display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none;transition:all .2s;margin-bottom:8px}
+.monthly-row:hover{border-color:var(--border2)}
+.monthly-row.done{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.05)}
+.mr-emoji{font-size:20px;flex-shrink:0}
+.mr-info{flex:1}
+.mr-name{font-size:13px;font-weight:600;color:var(--t2);transition:color .15s}
+.monthly-row.done .mr-name{color:#4ade80}
+.mr-sub{font-size:11px;color:var(--t3);margin-top:2px}
+.mr-check{width:22px;height:22px;border-radius:5px;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s}
+.monthly-row.done .mr-check{background:#22c55e;border-color:#22c55e}
+.mr-check i{font-size:12px;color:#fff;opacity:0;transition:opacity .15s}
+.monthly-row.done .mr-check i{opacity:1}
+
 @media(max-width:500px){
   .checkin-grid,.cal-grid{grid-template-columns:1fr}
 }
@@ -192,7 +224,25 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
   <div class="cal-section">
     <div class="sec-hdr"><span class="sec-lbl red">Streak calendars — BP protocol</span></div>
     <div class="cal-grid" id="hbp-cal"></div>
+  </div>  <!-- Periodic habits -->
+  <div class="period-section">
+    <div class="sec-hdr" style="margin-top:.25rem">
+      <span class="sec-lbl">Weekly habits</span>
+      <span style="font-size:10px;color:var(--t3)">once per week</span>
+    </div>
+    <div id="weekly-table"></div>
+
+    <div class="sec-hdr" style="margin-top:.5rem">
+      <span class="sec-lbl">Every 2 weeks</span>
+    </div>
+    <div id="biweekly-table"></div>
+
+    <div class="sec-hdr" style="margin-top:.5rem">
+      <span class="sec-lbl">Monthly</span>
+    </div>
+    <div id="monthly-table"></div>
   </div>
+
 </div>
 
 <!-- Add Habit Modal -->
@@ -342,6 +392,7 @@ function render(){
 
   renderCheckin(habits, day);
   renderCals(habits);
+  renderPeriodic();
 }
 
 function cardHTML(h, day){
@@ -481,6 +532,154 @@ async function doConnect(){const url=document.getElementById('sync-url').value.t
 function doDisconnect(){localStorage.removeItem('hbt-cfg');sbClient=null;setSS('off');closeSyncModal();}
 
 document.addEventListener('keydown',e=>{if(e.key==='Escape')document.querySelectorAll('.overlay.open').forEach(m=>m.classList.remove('open'));});
+
+// ── Periodic habits ──────────────────────────────────────────
+const WEEKLY_HABITS = [
+  {id:'sheets',  emoji:'🛏️', label:'Wash bed sheets'},
+  {id:'desk',    emoji:'🗒️', label:'Clean desk'},
+  {id:'clutter', emoji:'🧹', label:'Clean clutter'},
+  {id:'fast24',  emoji:'⏳', label:'24-hour fast'},
+];
+const BIWEEKLY_HABITS = [
+  {id:'haircut', emoji:'✂️', label:'Haircut'},
+];
+const MONTHLY_HABITS = [
+  {id:'fast48',  emoji:'🍽️', label:'48-hour fast'},
+];
+
+function getPeriodic(y,m){ return ls(`hbt-p:${y}-${String(m).padStart(2,'0')}`)||{}; }
+function savePeriodic(y,m,d){ lss(`hbt-p:${y}-${String(m).padStart(2,'0')}`,d); }
+
+function togglePeriodic(type,id,period){
+  const d=getPeriodic(calYear,calMonth);
+  if(!d[type])d[type]={};
+  if(type==='monthly'){
+    d[type][id]=!d[type][id];
+  } else {
+    if(!d[type][period])d[type][period]={};
+    d[type][period][id]=!d[type][period][id];
+  }
+  savePeriodic(calYear,calMonth,d);
+  renderPeriodic();
+}
+
+function weeksInMonth(y,m){ return new Date(y,m,0).getDate()>=29?5:4; }
+
+function curWeekOfMonth(){
+  const t=new Date();
+  if(t.getFullYear()!==calYear||t.getMonth()+1!==calMonth)return -1;
+  return Math.min(Math.ceil(t.getDate()/7),5);
+}
+
+function weekRange(y,m,w){
+  const dim=new Date(y,m,0).getDate();
+  const s=(w-1)*7+1, e=Math.min(w*7,dim);
+  return `${s}–${e}`;
+}
+
+function renderPeriodic(){
+  const d=getPeriodic(calYear,calMonth);
+  const nw=weeksInMonth(calYear,calMonth);
+  const cw=curWeekOfMonth();
+  const isCur=cw!==-1;
+
+  // ── Weekly table ──────────────────────────────────────────
+  const we=document.getElementById('weekly-table');
+  if(we){
+    // column sizes: name col + one col per week
+    const cols=`grid-template-columns:1fr ${' 54px'.repeat(nw)}`;
+
+    // header row
+    let hdr=`<div class="pt-hdr">Habit</div>`;
+    for(let w=1;w<=nw;w++){
+      const cur=w===cw;
+      hdr+=`<div class="pt-hdr${cur?' cur':''}" style="text-align:center">
+        W${w}<div style="font-size:8px;font-weight:400;margin-top:1px;letter-spacing:0">${weekRange(calYear,calMonth,w)}</div>
+      </div>`;
+    }
+
+    // habit rows
+    const rows=WEEKLY_HABITS.map(h=>{
+      let cells='';
+      for(let w=1;w<=nw;w++){
+        const isFut=isCur&&w>cw;
+        const isPast=isCur&&w<cw;
+        const checked=!!(d.weekly&&d.weekly[w]&&d.weekly[w][h.id]);
+        if(isFut){
+          cells+=`<div class="pt-col"><span class="fut-dash">—</span></div>`;
+        } else {
+          let cls='pcheck';
+          if(checked)cls+=' on';
+          else if(w===cw)cls+=' cur-period';
+          else if(isPast)cls+=' past-miss';
+          cells+=`<div class="pt-col"><div class="${cls}" onclick="togglePeriodic('weekly','${h.id}',${w})"><i class="ti ti-check"></i></div></div>`;
+        }
+      }
+      return `<div class="pt-row" style="${cols}">
+        <div class="pt-cell"><span style="font-size:15px">${h.emoji}</span>${h.label}</div>
+        ${cells}
+      </div>`;
+    }).join('');
+
+    we.innerHTML=`<div class="period-table">
+      <div class="pt-header" style="${cols}">${hdr}</div>${rows}
+    </div>`;
+  }
+
+  // ── Bi-weekly table ───────────────────────────────────────
+  const be=document.getElementById('biweekly-table');
+  if(be){
+    const cols='grid-template-columns:1fr 100px 100px';
+    const periods=[
+      {p:1,label:'Weeks 1–2',minW:1,maxW:2},
+      {p:2,label:'Weeks 3–4',minW:3,maxW:4},
+    ];
+    let hdr=`<div class="pt-hdr">Habit</div>`;
+    periods.forEach(p=>{
+      const cur=isCur&&cw>=p.minW&&cw<=p.maxW;
+      hdr+=`<div class="pt-hdr${cur?' cur':''}" style="text-align:center">${p.label}</div>`;
+    });
+    const rows=BIWEEKLY_HABITS.map(h=>{
+      let cells='';
+      periods.forEach(p=>{
+        const isFut=isCur&&cw<p.minW;
+        const isCurP=isCur&&cw>=p.minW&&cw<=p.maxW;
+        const checked=!!(d.biweekly&&d.biweekly[p.p]&&d.biweekly[p.p][h.id]);
+        if(isFut){
+          cells+=`<div class="pt-col"><span class="fut-dash">—</span></div>`;
+        } else {
+          let cls='pcheck';
+          if(checked)cls+=' on';
+          else if(isCurP)cls+=' cur-period';
+          else if(!checked&&!isCurP)cls+=' past-miss';
+          cells+=`<div class="pt-col"><div class="${cls}" onclick="togglePeriodic('biweekly','${h.id}',${p.p})"><i class="ti ti-check"></i></div></div>`;
+        }
+      });
+      return `<div class="pt-row" style="${cols}">
+        <div class="pt-cell"><span style="font-size:15px">${h.emoji}</span>${h.label}</div>${cells}
+      </div>`;
+    }).join('');
+    be.innerHTML=`<div class="period-table">
+      <div class="pt-header" style="${cols}">${hdr}</div>${rows}
+    </div>`;
+  }
+
+  // ── Monthly ───────────────────────────────────────────────
+  const me=document.getElementById('monthly-table');
+  if(me){
+    me.innerHTML=MONTHLY_HABITS.map(h=>{
+      const checked=!!(d.monthly&&d.monthly[h.id]);
+      return `<div class="monthly-row${checked?' done':''}" onclick="togglePeriodic('monthly','${h.id}',0)">
+        <span class="mr-emoji">${h.emoji}</span>
+        <div class="mr-info">
+          <div class="mr-name">${h.label}</div>
+          <div class="mr-sub">${MONTHS[calMonth-1]} ${calYear} · ${checked?'✓ Done this month':'Not done yet'}</div>
+        </div>
+        <div class="mr-check"><i class="ti ti-check"></i></div>
+      </div>`;
+    }).join('');
+  }
+}
 
 // Boot
 syncFromCloud();
