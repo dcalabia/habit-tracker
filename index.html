@@ -28,7 +28,10 @@ button{cursor:pointer;font-family:inherit}
 .sync-pill:hover{border-color:var(--border2);color:var(--t1)}
 .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--t3);flex-shrink:0;transition:background .3s}
 
-.prog-wrap{margin-bottom:1.5rem}
+.habit-card.past-date{border-style:dashed;opacity:.9}
+.cal-day.is-view{outline:2px solid var(--accent);outline-offset:-2px;border-radius:4px}
+.cal-day:not(.future){cursor:pointer}
+.cal-day:not(.future):hover{opacity:.75}
 .prog-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
 .prog-lbl{font-size:10px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--t3)}
 .prog-pct{font-size:13px;font-weight:700;font-family:var(--mono)}
@@ -284,6 +287,12 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
     </div>
   </div>
 
+  <div id="date-nav" style="display:flex;align-items:center;gap:8px;margin-bottom:1rem;padding:.5rem .75rem;background:var(--bg2);border:1px solid var(--border);border-radius:10px">
+    <button class="mnav-btn" onclick="navDate(-1)" title="Previous day">‹</button>
+    <span id="nav-lbl" style="flex:1;text-align:center;font-size:13px;font-weight:600;color:var(--t1)">Today</span>
+    <button id="nav-today-btn" onclick="navToday()" style="display:none;height:26px;padding:0 10px;border-radius:6px;border:1px solid var(--accent);background:rgba(124,109,250,.12);color:var(--accent);font-size:11px;cursor:pointer;font-weight:600">Today</button>
+    <button id="nav-next-btn" class="mnav-btn" onclick="navDate(1)" title="Next day">›</button>
+  </div>
   <div class="prog-wrap">
     <div class="prog-row">
       <span class="prog-lbl">Today's progress</span>
@@ -319,6 +328,21 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
       <div class="pu-set" id="pu-s1" onclick="togglePushup(1)"><div class="pu-set-num">25</div><div class="pu-set-lbl">SET 1</div></div>
       <div class="pu-set" id="pu-s2" onclick="togglePushup(2)"><div class="pu-set-num">25</div><div class="pu-set-lbl">SET 2</div></div>
       <div class="pu-set" id="pu-s3" onclick="togglePushup(3)"><div class="pu-set-num">25</div><div class="pu-set-lbl">SET 3</div></div>
+    </div>
+  </div>
+
+  <!-- 20K Steps bonus card -->
+  <div class="pu-card" id="steps20k-card">
+    <div class="pu-left">
+      <span style="font-size:20px">👟</span>
+      <div>
+        <div class="pu-title">Steps</div>
+        <div class="pu-sub" id="steps20k-sub">10K required · 20K bonus</div>
+      </div>
+    </div>
+    <div class="pu-sets">
+      <div class="pu-set" id="steps-s1" onclick="toggleSteps(1)"><div class="pu-set-num">10K</div><div class="pu-set-lbl">STEPS 1</div></div>
+      <div class="pu-set" id="steps-s2" onclick="toggleSteps(2)" style="border-style:dashed;opacity:.6"><div class="pu-set-num">+10K</div><div class="pu-set-lbl">BONUS</div></div>
     </div>
   </div>
 
@@ -463,8 +487,20 @@ const WDAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturd
 
 // ── State ────────────────────────────────────────────────────
 const TODAY=(()=>{const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;})();
+let viewDate=TODAY;
 let calYear=new Date().getFullYear(), calMonth=new Date().getMonth()+1;
 let sbClient=null, pendingDelId=null, addCat='regular';
+
+function navDate(dir){
+  const d=new Date(viewDate+'T12:00:00');
+  d.setDate(d.getDate()+dir);
+  const nk=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  // Don't navigate into the future
+  if(nk>TODAY)return;
+  viewDate=nk;
+  render();
+}
+function navToday(){viewDate=TODAY;render();}
 
 // ── Storage ──────────────────────────────────────────────────
 function ls(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
@@ -511,7 +547,6 @@ function writeHabit(id,dk,val){
 }
 
 function toggle(id,dk){
-  if(dk!==TODAY)return;
   writeHabit(id,dk,!readHabit(id,dk));
   render();
 }
@@ -533,19 +568,35 @@ function best(id){const s=ls('hbt-best:'+id)||0,c=streak(id),b=Math.max(s,c);if(
 // ── Render ───────────────────────────────────────────────────
 function render(){
   // Header
-  const d=new Date();
+  const vd=new Date(viewDate+'T12:00:00');
+  const isToday=viewDate===TODAY;
   const hd=document.getElementById('hdr-date');
-  if(hd)hd.textContent=`${WDAYS[d.getDay()]}, ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  if(hd)hd.textContent=isToday?`${WDAYS[vd.getDay()]}, ${MONTHS[vd.getMonth()]} ${vd.getDate()}`:`${WDAYS[vd.getDay()]}, ${MONTHS[vd.getMonth()]} ${vd.getDate()} ${vd.getFullYear()}`;
   const cl=document.getElementById('checkin-lbl');
-  if(cl)cl.textContent=`Today — ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  if(cl)cl.textContent=isToday?`Today — ${MONTHS[vd.getMonth()]} ${vd.getDate()}`:`${MONTHS[vd.getMonth()]} ${vd.getDate()}, ${vd.getFullYear()}`;
 
-  // Progress — habits + 4 pomodoros + push-up card
-  const habits=getHabits(), day=getDay(TODAY);
-  const habitDone=habits.filter(h=>!!day[h.id]).length;
-  const pomoDone=Math.min(pSess.length,POMO_GOAL);
-  const puData=getPushup(TODAY), puDone=(puData.s1&&puData.s2&&puData.s3)?1:0;
-  const done=habitDone+pomoDone+puDone;
-  const total=habits.length+POMO_GOAL+1;
+  // Date nav UI
+  const navEl=document.getElementById('date-nav');
+  if(navEl){
+    document.getElementById('nav-lbl').textContent=isToday?'Today':`${MONTHS[vd.getMonth()]} ${vd.getDate()}`;
+    document.getElementById('nav-today-btn').style.display=isToday?'none':'inline-flex';
+    document.getElementById('nav-next-btn').disabled=isToday;
+    document.getElementById('nav-next-btn').style.opacity=isToday?'0.3':'1';
+  }
+
+  // Progress — use viewDate
+  const habits=getHabits(), day=getDay(viewDate);
+  const habitDone=habits.filter(h=>readHabit(h.id,viewDate)).length;
+  const pomoDone=isToday?Math.min(pSess.length,POMO_GOAL):Math.min((ls('pomo:'+viewDate)||{sessions:[]}).sessions.length,POMO_GOAL);
+  const puData=getPushup(viewDate), puDone=(puData.s1&&puData.s2&&puData.s3)?1:0;
+  const stepsData=getSteps20k(viewDate);
+  const actualSteps=parseInt((ls('metrics:'+viewDate)||{}).steps||0);
+  const s1done=!!(stepsData.s1||actualSteps>=10000);
+  const s2done=!!stepsData.s2;
+  const stepsDone=s1done?1:0;
+  const stepsBonus=s2done?1:0;
+  const done=habitDone+pomoDone+puDone+stepsDone+stepsBonus;
+  const total=habits.length+POMO_GOAL+1+1;
   const pct=total?Math.round(done/total*100):0;
   const fill=document.getElementById('prog-fill');
   const pctEl=document.getElementById('prog-pct');
@@ -553,6 +604,7 @@ function render(){
   if(pctEl){pctEl.textContent=pct===100?'✓ All done!':done+' / '+total;pctEl.style.color=pct===100?'#4ade80':'var(--t1)';}
 
   // Month nav
+  const d=new Date();
   const ml=document.getElementById('mnav-lbl');
   if(ml)ml.textContent=`${MONTHS[calMonth-1]} ${calYear}`;
   const mb=document.getElementById('mnav-today-btn');
@@ -562,11 +614,13 @@ function render(){
   renderCals(habits);
   renderPeriodic();
   renderPushup();
+  renderSteps20k();
 }
 
 function cardHTML(h, day){
-  const on=readHabit(h.id,TODAY), s=streak(h.id);
-  return`<div class="habit-card${on?' done':''}${h.cat==='hbp'?' hbp':''}" onclick="toggle('${h.id}','${TODAY}')">
+  const on=readHabit(h.id,viewDate), s=streak(h.id);
+  const isPast=viewDate!==TODAY;
+  return`<div class="habit-card${on?' done':''}${h.cat==='hbp'?' hbp':''}${isPast?' past-date':''}" onclick="toggle('${h.id}','${viewDate}')">
     <button class="del-btn" onclick="event.stopPropagation();askDel('${h.id}','${h.label.replace(/'/g,"&#39;")}')" title="Remove"><i class="ti ti-x"></i></button>
     <span class="habit-emoji">${h.emoji}</span>
     <div class="habit-info">
@@ -608,9 +662,9 @@ function buildCal(h){
   for(let i=0;i<fdow;i++)cells+=`<div class="cal-day" style="background:transparent"></div>`;
   for(let d=1;d<=dim;d++){
     const dk=`${calYear}-${String(calMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const isFut=isCur&&d>td.getDate(), isNow=dk===TODAY, isDone=done.has(d);
-    let cls='cal-day'+(isFut?' future':isDone?' done':' miss')+(isNow?' is-today':'')+(isNow?' clickable':'');
-    const handler=isNow?`onclick="toggle('${h.id}','${TODAY}')"` :'';
+    const isFut=isCur&&d>td.getDate(), isNow=dk===TODAY, isDone=done.has(d), isView=dk===viewDate;
+    let cls='cal-day'+(isFut?' future':isDone?' done':' miss')+(isNow?' is-today':'')+(isView?' is-view':'');
+    const handler=!isFut?`onclick="viewDate='${dk}';render()"` :'';
     cells+=`<div class="${cls}" ${handler}>${d}</div>`;
   }
   return`<div class="cal-card${h.cat==='hbp'?' hbp':''}">
@@ -926,11 +980,55 @@ function getPushup(dk){ return (getDay(dk).pu75)||{}; }
 function isPushupAllDone(dk){ const p=getPushup(dk); return !!(p.s1&&p.s2&&p.s3); }
 
 function togglePushup(set){
-  const day=getDay(TODAY);
+  const day=getDay(viewDate);
   if(!day.pu75)day.pu75={};
   day.pu75['s'+set]=!day.pu75['s'+set];
-  lss('hbt:'+TODAY,day);
+  lss('hbt:'+viewDate,day);
   renderPushup();
+}
+
+// ── 20K Steps bonus ───────────────────────────────────────────
+function getSteps20k(dk){ return (getDay(dk).steps20k)||{}; }
+
+function toggleSteps(set){
+  const day=getDay(viewDate);
+  if(!day.steps20k)day.steps20k={};
+  day.steps20k['s'+set]=!day.steps20k['s'+set];
+  if(set===1){
+    const m=ls('metrics:'+viewDate)||{};
+    m.steps=day.steps20k.s1?10000:0;
+    lss('metrics:'+viewDate,m);
+  }
+  lss('hbt:'+viewDate,day);
+  renderSteps20k();
+}
+
+function renderSteps20k(){
+  const p=getSteps20k(viewDate);
+  const actualSteps=parseInt((ls('metrics:'+viewDate)||{}).steps||0);
+  const s1done=!!(p.s1||actualSteps>=10000);
+  const s2done=!!p.s2;
+
+  const s1el=document.getElementById('steps-s1');
+  const s2el=document.getElementById('steps-s2');
+  const card=document.getElementById('steps20k-card');
+  const sub=document.getElementById('steps20k-sub');
+
+  if(s1el){s1el.classList.toggle('done',s1done);s1el.style.opacity='1';}
+  if(s2el){
+    s2el.classList.toggle('done',s2done);
+    s2el.style.borderStyle=s1done?'solid':'dashed';
+    s2el.style.opacity=s1done?'1':'.55';
+  }
+  if(card){
+    card.classList.toggle('all-done',s1done&&s2done);
+    card.style.borderColor=s2done?'rgba(34,197,94,.5)':s1done?'rgba(34,197,94,.25)':'';
+  }
+  if(sub){
+    if(s1done&&s2done) sub.textContent='20K done! ⭐';
+    else if(s1done)    sub.textContent='10K hit · bonus available';
+    else               sub.textContent='10K required · 20K bonus';
+  }
 }
 
 function pushupStreak(){
@@ -946,7 +1044,7 @@ function pushupStreak(){
 }
 
 function renderPushup(){
-  const p=getPushup(TODAY);
+  const p=getPushup(viewDate);
   [1,2,3].forEach(s=>{
     const el=document.getElementById('pu-s'+s);
     if(el)el.classList.toggle('done',!!p['s'+s]);
