@@ -28,8 +28,6 @@ button{cursor:pointer;font-family:inherit}
 .sync-pill:hover{border-color:var(--border2);color:var(--t1)}
 .sync-dot{width:7px;height:7px;border-radius:50%;background:var(--t3);flex-shrink:0;transition:background .3s}
 
-.habit-card.past-date{border-style:dashed;opacity:.9}
-.cal-day.is-view{outline:2px solid var(--accent);outline-offset:-2px;border-radius:4px}
 .cal-day:not(.future){cursor:pointer}
 .cal-day:not(.future):hover{opacity:.75}
 .prog-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
@@ -546,6 +544,14 @@ function writeHabit(id,dk,val){
   else { const d=getDay(dk); d[id]=val; lss('hbt:'+dk,d); }
 }
 
+function toggleCalDay(id, dk){
+  writeHabit(id, dk, !readHabit(id, dk));
+  // Only re-render calendars + progress, not the whole checkin section
+  renderCals(getHabits());
+  // Update progress bar
+  render();
+}
+
 function toggle(id,dk){
   writeHabit(id,dk,!readHabit(id,dk));
   render();
@@ -662,9 +668,9 @@ function buildCal(h){
   for(let i=0;i<fdow;i++)cells+=`<div class="cal-day" style="background:transparent"></div>`;
   for(let d=1;d<=dim;d++){
     const dk=`${calYear}-${String(calMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const isFut=isCur&&d>td.getDate(), isNow=dk===TODAY, isDone=done.has(d), isView=dk===viewDate;
-    let cls='cal-day'+(isFut?' future':isDone?' done':' miss')+(isNow?' is-today':'')+(isView?' is-view':'');
-    const handler=!isFut?`onclick="viewDate='${dk}';render()"` :'';
+    const isFut=isCur&&d>td.getDate(), isNow=dk===TODAY, isDone=done.has(d);
+    let cls='cal-day'+(isFut?' future':isDone?' done':' miss')+(isNow?' is-today':'');
+    const handler=!isFut?`onclick="toggleCalDay('${h.id}','${dk}')"` :'';
     cells+=`<div class="${cls}" ${handler}>${d}</div>`;
   }
   return`<div class="cal-card${h.cat==='hbp'?' hbp':''}">
