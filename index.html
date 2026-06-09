@@ -67,9 +67,10 @@ button{cursor:pointer;font-family:inherit}
 .habit-card.done .habit-check{background:#22c55e;border-color:#22c55e}
 .habit-check i{font-size:12px;color:#fff;opacity:0;transition:opacity .15s}
 .habit-card.done .habit-check i{opacity:1}
-.del-btn{position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:4px;border:none;background:transparent;color:var(--t3);font-size:11px;cursor:pointer;opacity:0;transition:opacity .15s;display:flex;align-items:center;justify-content:center}
-.habit-card:hover .del-btn{opacity:1}
+.del-btn{position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:4px;border:none;background:transparent;color:rgba(255,255,255,0.25);font-size:11px;cursor:pointer;opacity:1;transition:all .15s;display:flex;align-items:center;justify-content:center}
 .del-btn:hover{background:rgba(239,68,68,.15);color:#f87171}
+.edit-emoji-btn{position:absolute;top:5px;right:26px;width:18px;height:18px;border-radius:4px;border:none;background:transparent;color:rgba(255,255,255,0.2);font-size:11px;cursor:pointer;opacity:1;transition:all .15s;display:flex;align-items:center;justify-content:center}
+.edit-emoji-btn:hover{background:rgba(59,130,246,.15);color:#60a5fa}
 
 .hbp-banner{display:flex;align-items:center;gap:10px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:var(--r);padding:.7rem 1rem;margin-bottom:.9rem}
 .hbp-banner .bn-title{font-size:11px;font-weight:700;color:#f87171;text-transform:uppercase;letter-spacing:.06em}
@@ -641,12 +642,13 @@ function cardHTML(h, day){
   const isPast=viewDate!==TODAY;
   return`<div class="habit-card${on?' done':''}${h.cat==='hbp'?' hbp':''}${isPast?' past-date':''}" onclick="toggle('${h.id}','${viewDate}')">
     <button class="del-btn" onclick="event.stopPropagation();askDel('${h.id}','${h.label.replace(/'/g,"&#39;")}')" title="Remove"><i class="ti ti-x"></i></button>
-    <span class="habit-emoji">${h.emoji}</span>
+    <button class="edit-emoji-btn" onclick="event.stopPropagation();openEditEmoji('${h.id}')" title="Edit emoji">✏️</button>
+    <span class="habit-emoji" id="emoji-${h.id}">${h.emoji}</span>
     <div class="habit-info">
       <div class="habit-name">${h.label}</div>
       <div class="habit-streak-lbl">${s>0?'🔥 '+s+'d streak':'No streak yet'}</div>
     </div>
-    <div class="habit-check"><i class="ti ti-check"></i></div>
+    <div class="habit-check" style="margin-right:6px"><i class="ti ti-check"></i></div>
   </div>`;
 }
 
@@ -762,6 +764,16 @@ function askDel(id,label,type='daily'){
   document.getElementById('del-modal').classList.add('open');
 }
 function closeDel(){document.getElementById('del-modal').classList.remove('open');pendingDelId=null;}
+
+function openEditEmoji(id){
+  const h=getHabits().find(x=>x.id===id);
+  if(!h)return;
+  const newEmoji=prompt('Enter new emoji for "'+h.label+'":', h.emoji);
+  if(!newEmoji||!newEmoji.trim())return;
+  const habits=getHabits();
+  const idx=habits.findIndex(x=>x.id===id);
+  if(idx>=0){habits[idx].emoji=newEmoji.trim();setHabits(habits);render();}
+}
 function confirmDel(){
   if(pendingDelId){
     if(pendingDelType==='daily') setHabits(getHabits().filter(h=>h.id!==pendingDelId));
