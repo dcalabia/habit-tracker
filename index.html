@@ -386,6 +386,18 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
       <button class="add-btn" onclick="openAdd('monthly')">+ Add</button>
     </div>
     <div id="monthly-table"></div>
+
+    <div class="sec-hdr" style="margin-top:.5rem">
+      <span class="sec-lbl">Bi-Annual</span>
+      <button class="add-btn" onclick="openAdd('biannual')">+ Add</button>
+    </div>
+    <div id="biannual-table"></div>
+
+    <div class="sec-hdr" style="margin-top:.5rem">
+      <span class="sec-lbl">Annual</span>
+      <button class="add-btn" onclick="openAdd('annual')">+ Add</button>
+    </div>
+    <div id="annual-table"></div>
   </div>
 
 </div>
@@ -700,14 +712,14 @@ function renderCals(habits){
 }
 
 // ── Add modal ────────────────────────────────────────────────
-const PERIOD_LABELS={regular:'Add Habit',hbp:'Add BP Habit',weekly:'Add Weekly Habit',biweekly:'Add Bi-Weekly Habit',monthly:'Add Monthly Habit'};
+const PERIOD_LABELS={regular:'Add Habit',hbp:'Add BP Habit',weekly:'Add Weekly Habit',biweekly:'Add Bi-Weekly Habit',monthly:'Add Monthly Habit',biannual:'Add Bi-Annual Habit',annual:'Add Annual Habit'};
 
 function openAdd(cat){
   addCat=cat||'regular';
   document.getElementById('inp-emoji').value='';
   document.getElementById('inp-name').value='';
   document.getElementById('emoji-preview').textContent='❓';
-  const isPeriodic=['weekly','biweekly','monthly'].includes(addCat);
+  const isPeriodic=['weekly','biweekly','monthly','biannual','annual'].includes(addCat);
   document.getElementById('cat-field').style.display=isPeriodic?'none':'block';
   if(!isPeriodic) setCat(addCat);
   document.getElementById('add-title').textContent=PERIOD_LABELS[addCat]||'Add Habit';
@@ -938,6 +950,51 @@ function renderPeriodic(){
           </div>
           <div class="mr-check" onclick="togglePeriodic('monthly','${h.id}',0)" style="cursor:pointer"><i class="ti ti-check"></i></div>
           <button class="del-btn" style="position:absolute;top:6px;right:6px" onclick="askDel('${h.id}','${h.label.replace(/'/g,"&#39;")}','monthly')" title="Remove"><i class="ti ti-x"></i></button>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  // ── Bi-Annual ─────────────────────────────────────────────
+  const bae=document.getElementById('biannual-table');
+  if(bae){
+    const habits=getPH('biannual');
+    const halfLabel=calMonth<=6?'Jan–Jun':'Jul–Dec';
+    if(!habits.length){
+      bae.innerHTML='<div class="empty-state"><span class="empty-icon">🗓️</span>No bi-annual habits yet.</div>';
+    } else {
+      bae.innerHTML=habits.map(h=>{
+        const checked=!!(d.biannual&&d.biannual[h.id]);
+        return `<div class="monthly-row${checked?' done':''}" style="position:relative">
+          <span class="mr-emoji">${h.emoji}</span>
+          <div class="mr-info" onclick="togglePeriodic('biannual','${h.id}',0)" style="cursor:pointer;flex:1">
+            <div class="mr-name">${h.label}</div>
+            <div class="mr-sub">${halfLabel} ${calYear} · ${checked?'✓ Done this half':'Not done yet'}</div>
+          </div>
+          <div class="mr-check" onclick="togglePeriodic('biannual','${h.id}',0)" style="cursor:pointer"><i class="ti ti-check"></i></div>
+          <button class="del-btn" style="position:absolute;top:6px;right:6px" onclick="askDel('${h.id}','${h.label.replace(/'/g,"&#39;")}','biannual')" title="Remove"><i class="ti ti-x"></i></button>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  // ── Annual ────────────────────────────────────────────────
+  const ane=document.getElementById('annual-table');
+  if(ane){
+    const habits=getPH('annual');
+    if(!habits.length){
+      ane.innerHTML='<div class="empty-state"><span class="empty-icon">🏆</span>No annual habits yet.</div>';
+    } else {
+      ane.innerHTML=habits.map(h=>{
+        const checked=!!(d.annual&&d.annual[h.id]);
+        return `<div class="monthly-row${checked?' done':''}" style="position:relative">
+          <span class="mr-emoji">${h.emoji}</span>
+          <div class="mr-info" onclick="togglePeriodic('annual','${h.id}',0)" style="cursor:pointer;flex:1">
+            <div class="mr-name">${h.label}</div>
+            <div class="mr-sub">${calYear} · ${checked?'✓ Done this year':'Not done yet'}</div>
+          </div>
+          <div class="mr-check" onclick="togglePeriodic('annual','${h.id}',0)" style="cursor:pointer"><i class="ti ti-check"></i></div>
+          <button class="del-btn" style="position:absolute;top:6px;right:6px" onclick="askDel('${h.id}','${h.label.replace(/'/g,"&#39;")}','annual')" title="Remove"><i class="ti ti-x"></i></button>
         </div>`;
       }).join('');
     }
