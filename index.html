@@ -226,9 +226,10 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
 </style>
 </head>
 <body>
-<div class="page">
+<div class="page" style="position:relative">
 
-  <div class="hdr-eyebrow">Dale's Dashboard</div>
+  <div class="hdr-eyebrow" id="dash-switcher-trigger" style="cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:4px" onclick="toggleDashMenu()">DALE'S DASHBOARD <span style='font-size:9px'>▾</span></div>
+  <div id="dash-menu" style="display:none;position:absolute;top:24px;left:0;background:#111827;border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:6px;min-width:210px;box-shadow:0 8px 32px rgba(0,0,0,0.5);z-index:999"></div>
   <div class="hdr-row">
     <div>
       <div class="hdr-title">Habit Tracker</div>
@@ -1189,6 +1190,44 @@ pomoRing();
 pomoRenderGoal();
 pomoRequestNotif();
 syncFromCloud();
+
+// ── Dashboard Switcher ────────────────────────────────────────
+const DASHBOARDS = [
+  { label: "Health Dashboard",  icon: "💪", url: "https://dcalabia.github.io/master-dashboard/",  active: false },
+  { label: "Game Log",          icon: "🎯", url: "https://dcalabia.github.io/game-dashboard/",    active: false },
+  { label: "Habit Tracker",     icon: "✅", url: "https://dcalabia.github.io/habit-tracker/",     active: true },
+  { label: "Trading Dashboard", icon: "📈", url: "https://dcalabia.github.io/trading-dashboard/", active: false },
+  { label: "Finance Dashboard", icon: "💰", url: "https://dcalabia.github.io/finance-dashboard/", active: false },
+];
+(function buildDashMenu() {
+  const trigger = document.getElementById('dash-switcher-trigger');
+  const menu = document.getElementById('dash-menu');
+  if (!trigger || !menu) return;
+  DASHBOARDS.forEach(function(d) {
+    const item = document.createElement('div');
+    item.style.cssText = 'display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:7px;cursor:' + (d.active ? 'default' : 'pointer') + ';color:' + (d.active ? 'var(--accent)' : 'var(--t1,#f0f4f8)') + ';font-size:13px;font-weight:' + (d.active ? '600' : '400') + ';transition:background .12s';
+    item.innerHTML = '<span style="font-size:16px">' + d.icon + '</span><span>' + d.label + '</span>' + (d.active ? '<span style="font-size:10px;color:var(--accent);margin-left:auto">●</span>' : '');
+    if (!d.active) {
+      item.onmouseenter = function() { item.style.background = 'rgba(255,255,255,0.06)'; };
+      item.onmouseleave = function() { item.style.background = ''; };
+      item.onclick = function() { window.location.href = d.url; };
+    }
+    menu.appendChild(item);
+  });
+})();
+let dashMenuOpen = false;
+function toggleDashMenu() {
+  dashMenuOpen = !dashMenuOpen;
+  const menu = document.getElementById('dash-menu');
+  if (menu) menu.style.display = dashMenuOpen ? 'block' : 'none';
+}
+document.addEventListener('click', function(e) {
+  if (dashMenuOpen && !e.target.closest('#dash-switcher-trigger') && !e.target.closest('#dash-menu')) {
+    dashMenuOpen = false;
+    const menu = document.getElementById('dash-menu');
+    if (menu) menu.style.display = 'none';
+  }
+});
 </script>
 </body>
 </html>
