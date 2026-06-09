@@ -743,7 +743,7 @@ function saveAdd(){
   const emoji=document.getElementById('inp-emoji').value.trim();
   const name=document.getElementById('inp-name').value.trim();
   if(!name){document.getElementById('inp-name').focus();return;}
-  if(['weekly','biweekly','monthly'].includes(addCat)){
+  if(['weekly','biweekly','monthly','biannual','annual'].includes(addCat)){
     addPH(addCat, emoji||'⭐', name);
   } else {
     const habits=getHabits();
@@ -813,6 +813,8 @@ function getPHAll(){
     weekly:   s.weekly   ?? PH_DEFAULTS.weekly,
     biweekly: s.biweekly ?? PH_DEFAULTS.biweekly,
     monthly:  s.monthly  ?? PH_DEFAULTS.monthly,
+    biannual: s.biannual ?? [],
+    annual:   s.annual   ?? [],
   };
 }
 function getPH(type){ return getPHAll()[type]||[]; }
