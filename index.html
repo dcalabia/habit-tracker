@@ -797,8 +797,11 @@ function openEditEmoji(id){
   const body=document.getElementById('emoji-picker-body');
   body.innerHTML=EMOJI_LIBRARY.map(cat=>`
     <div class="emoji-cat-lbl">${cat.cat}</div>
-    <div class="emoji-modal-grid">${cat.emojis.map(e=>`<button onclick="pickEmoji('${e}')">${e}</button>`).join('')}</div>
+    <div class="emoji-modal-grid">${cat.emojis.map(e=>`<button data-emoji="${e}" class="emoji-pick-btn">${e}</button>`).join('')}</div>
   `).join('');
+  body.querySelectorAll('.emoji-pick-btn').forEach(btn=>{
+    btn.addEventListener('click',function(ev){ev.stopPropagation();pickEmoji(this.dataset.emoji);});
+  });
   document.getElementById('emoji-modal').classList.add('open');
 }
 function pickEmoji(e){
