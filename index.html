@@ -800,11 +800,11 @@ function openEditEmoji(id){
     <div class="emoji-modal-grid">${cat.emojis.map(e=>`<button data-emoji="${e}" class="emoji-pick-btn">${e}</button>`).join('')}</div>
   `).join('');
   body.querySelectorAll('.emoji-pick-btn').forEach(btn=>{
-    btn.addEventListener('click',function(ev){ev.stopPropagation();pickEmoji(this.dataset.emoji);});
+    btn.addEventListener('click',function(ev){ev.stopPropagation();pickEditEmoji(this.dataset.emoji);});
   });
   document.getElementById('emoji-modal').classList.add('open');
 }
-function pickEmoji(e){
+function pickEditEmoji(e){
   if(!emojiTargetId)return;
   const habits=getHabits();
   const idx=habits.findIndex(x=>x.id===emojiTargetId);
