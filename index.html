@@ -1402,6 +1402,9 @@ pomoRing();
 pomoRenderGoal();
 pomoRequestNotif();
 syncFromCloud();
+setInterval(()=>{syncFromCloud();pushAll();}, 5*60*1000);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){syncFromCloud();}});
+window.addEventListener('beforeunload',()=>{pushAll();});
 
 // ── Dashboard Switcher ────────────────────────────────────────
 const DASHBOARDS = [
