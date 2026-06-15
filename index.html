@@ -231,9 +231,78 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
 .pomo-goal-lbl{font-size:11px;color:var(--t3);font-family:var(--mono)}
 .pomo-goal-lbl.hit{color:#4ade80}
 @media(max-width:460px){.pomo-body{grid-template-columns:1fr;justify-items:center}.pomo-ring-wrap{width:90px;height:90px}.pomo-ring{width:90px;height:90px}}
+
+/* ── Pomodoro Fullscreen Overlay ── */
+.pomo-fs{
+  position:fixed;inset:0;z-index:9999;
+  background:#080b12;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;
+  opacity:0;pointer-events:none;transition:opacity .3s ease;
+}
+.pomo-fs.visible{opacity:1;pointer-events:all;}
+.pomo-fs-close{
+  position:absolute;top:20px;right:24px;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  color:rgba(255,255,255,.5);font-size:13px;padding:6px 14px;border-radius:20px;
+  cursor:pointer;transition:all .2s;letter-spacing:.05em;
+}
+.pomo-fs-close:hover{background:rgba(255,255,255,.12);color:#fff;}
+.pomo-fs-mode{
+  font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;
+  color:rgba(255,255,255,.35);margin-bottom:28px;
+}
+.pomo-fs-ring-wrap{position:relative;width:260px;height:260px;margin-bottom:32px;}
+.pomo-fs-ring{width:260px;height:260px;}
+.pomo-fs-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;}
+.pomo-fs-time{font-size:64px;font-weight:800;font-family:var(--mono);letter-spacing:-.02em;line-height:1;}
+.pomo-fs-sublbl{font-size:11px;color:rgba(255,255,255,.3);margin-top:6px;text-transform:uppercase;letter-spacing:.1em;}
+.pomo-fs-task{
+  font-size:18px;font-weight:500;color:rgba(255,255,255,.75);
+  max-width:520px;text-align:center;padding:0 24px;margin-bottom:36px;
+  min-height:28px;letter-spacing:-.01em;
+}
+.pomo-fs-controls{display:flex;gap:12px;align-items:center;}
+.pomo-fs-btn{
+  height:44px;padding:0 22px;border-radius:10px;border:1px solid rgba(255,255,255,.15);
+  background:rgba(255,255,255,.06);color:#fff;font-size:13px;font-weight:600;
+  display:flex;align-items:center;gap:7px;cursor:pointer;transition:all .18s;
+}
+.pomo-fs-btn:hover{background:rgba(255,255,255,.12);}
+.pomo-fs-btn.primary{background:rgba(59,130,246,.25);border-color:rgba(59,130,246,.5);color:#93c5fd;}
+.pomo-fs-btn.primary:hover{background:rgba(59,130,246,.38);}
+.pomo-fs-pips{display:flex;gap:8px;margin-top:40px;}
+.pomo-fs-pip{width:10px;height:10px;border-radius:3px;border:1.5px solid rgba(255,255,255,.15);background:transparent;transition:all .2s;}
+.pomo-fs-pip.done{background:#378add;border-color:#378add;}
 </style>
 </head>
 <body>
+<!-- Pomodoro Fullscreen Overlay -->
+<div class="pomo-fs" id="pomo-fs">
+  <button class="pomo-fs-close" onclick="pomoFSHide()">✕ minimize</button>
+  <div class="pomo-fs-mode" id="pomo-fs-mode">Focus</div>
+  <div class="pomo-fs-ring-wrap">
+    <svg class="pomo-fs-ring" viewBox="0 0 260 260">
+      <circle fill="none" stroke="rgba(255,255,255,.06)" stroke-width="10" cx="130" cy="130" r="112"/>
+      <circle id="pomo-fs-arc" fill="none" stroke="#378add" stroke-width="10" stroke-linecap="round"
+        cx="130" cy="130" r="112" stroke-dasharray="703.7" stroke-dashoffset="0" transform="rotate(-90 130 130)"/>
+    </svg>
+    <div class="pomo-fs-center">
+      <div class="pomo-fs-time" id="pomo-fs-display">25:00</div>
+      <div class="pomo-fs-sublbl" id="pomo-fs-sublbl">Focus</div>
+    </div>
+  </div>
+  <div class="pomo-fs-task" id="pomo-fs-task">—</div>
+  <div class="pomo-fs-controls">
+    <button class="pomo-fs-btn" onclick="pomoReset()"><i class="ti ti-refresh"></i> Reset</button>
+    <button class="pomo-fs-btn primary" onclick="pomoToggle()" id="pomo-fs-start-btn">
+      <i class="ti ti-player-pause" id="pomo-fs-icon"></i>
+      <span id="pomo-fs-lbl">Pause</span>
+    </button>
+    <button class="pomo-fs-btn" onclick="pomoSkip()"><i class="ti ti-player-skip-forward"></i> Skip</button>
+  </div>
+  <div class="pomo-fs-pips" id="pomo-fs-pips"></div>
+</div>
+
 <div class="page" style="position:relative">
 
   <div class="hdr-eyebrow" id="dash-switcher-trigger" style="cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:4px" onclick="toggleDashMenu()">DALE'S DASHBOARD <span style='font-size:9px'>▾</span></div>
@@ -1225,22 +1294,45 @@ function setPomoMode(m,mins){
   pomoDisp(); pomoRing();
 }
 
+function pomoFSShow(){
+  const task=document.getElementById('pomo-task').value.trim()||'Focus session';
+  document.getElementById('pomo-fs-task').textContent=task;
+  document.getElementById('pomo-fs').classList.add('visible');
+  pomoFSSync();
+}
+function pomoFSHide(){ document.getElementById('pomo-fs').classList.remove('visible'); }
+function pomoFSSync(){
+  const modeName={focus:'Focus',short:'Short Break',long:'Long Break'}[pMode]||'Focus';
+  const color={focus:'#378add',short:'#22c55e',long:'#f59e0b'}[pMode];
+  document.getElementById('pomo-fs-mode').textContent=modeName;
+  document.getElementById('pomo-fs-sublbl').textContent=modeName;
+  document.getElementById('pomo-fs-arc').setAttribute('stroke',color);
+  const running=pRun;
+  document.getElementById('pomo-fs-icon').className=running?'ti ti-player-pause':'ti ti-player-play';
+  document.getElementById('pomo-fs-lbl').textContent=running?'Pause':'Resume';
+  // inline buttons too
+  document.getElementById('pomo-icon').className=running?'ti ti-player-pause':'ti ti-player-play';
+  document.getElementById('pomo-start-lbl').textContent=running?'Pause':'Resume';
+}
+
 function pomoToggle(){ pRun?pomoPause():pomoStart(); }
 function pomoStart(){
   pRun=true;
-  document.getElementById('pomo-icon').className='ti ti-player-pause';
-  document.getElementById('pomo-start-lbl').textContent='Pause';
   pTick=setInterval(pomoTick,1000);
+  pomoFSShow();
+  pomoFSSync();
 }
 function pomoPause(){
   pRun=false; clearInterval(pTick);
-  document.getElementById('pomo-icon').className='ti ti-player-play';
-  document.getElementById('pomo-start-lbl').textContent='Resume';
+  pomoFSSync();
 }
 function pomoReset(){
   pomoPause(); pRem=pTotal;
   document.getElementById('pomo-icon').className='ti ti-player-play';
   document.getElementById('pomo-start-lbl').textContent='Start';
+  document.getElementById('pomo-fs-icon').className='ti ti-player-play';
+  document.getElementById('pomo-fs-lbl').textContent='Start';
+  pomoFSHide();
   pomoDisp(); pomoRing();
 }
 function pomoSkip(){ pomoPause(); if(pMode==='focus')pomoComplete(); pomoReset(); }
@@ -1263,6 +1355,9 @@ function pomoComplete(){
   if(Notification.permission==='granted') new Notification('Pomodoro done!',{body:task,icon:'data:,'});
   document.getElementById('pomo-icon').className='ti ti-player-play';
   document.getElementById('pomo-start-lbl').textContent='Start';
+  document.getElementById('pomo-fs-icon').className='ti ti-player-play';
+  document.getElementById('pomo-fs-lbl').textContent='Start';
+  pomoFSHide();
 }
 
 function pomoAutoNext(){
@@ -1274,18 +1369,26 @@ function pomoAutoNext(){
 
 function pomoDisp(){
   const m=Math.floor(pRem/60), s=pRem%60;
-  document.getElementById('pomo-display').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  const t=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  document.getElementById('pomo-display').textContent=t;
+  document.getElementById('pomo-fs-display').textContent=t;
+  document.title=pRun?`${t} — ${({focus:'Focus',short:'Break',long:'Break'}[pMode]||'Pomo')}`:'Dale\'s Habit Tracker';
 }
 function pomoRing(){
-  document.getElementById('pomo-ring-arc').setAttribute('stroke-dashoffset',(264*(1-pRem/pTotal)).toFixed(1));
+  const pct=1-pRem/pTotal;
+  document.getElementById('pomo-ring-arc').setAttribute('stroke-dashoffset',(264*pct).toFixed(1));
+  document.getElementById('pomo-fs-arc').setAttribute('stroke-dashoffset',(703.7*pct).toFixed(1));
 }
 
 function pomoRenderGoal(){
   const n=pSess.length, met=n>=POMO_GOAL;
+  const pipHTML=Array.from({length:POMO_GOAL},(_,i)=>`<div class="pomo-pip${i<n?' done':''}"></div>`).join('');
   const pips=document.getElementById('pomo-pips');
   const lbl=document.getElementById('pomo-goal-lbl');
-  if(pips) pips.innerHTML=Array.from({length:POMO_GOAL},(_,i)=>`<div class="pomo-pip${i<n?' done':''}"></div>`).join('');
+  if(pips) pips.innerHTML=pipHTML;
   if(lbl){ lbl.textContent=`${n} / ${POMO_GOAL} today${met?' ✓':''}`; lbl.className='pomo-goal-lbl'+(met?' hit':''); }
+  const fsPips=document.getElementById('pomo-fs-pips');
+  if(fsPips) fsPips.innerHTML=Array.from({length:POMO_GOAL},(_,i)=>`<div class="pomo-fs-pip${i<n?' done':''}"></div>`).join('');
 }
 
 function pomoRequestNotif(){
