@@ -58,6 +58,13 @@ button{cursor:pointer;font-family:inherit}
 .habit-card.done{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.05)}
 .habit-card.hbp{border-color:rgba(239,68,68,.2)}
 .habit-card.hbp.done{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.05)}
+.habit-card.non-neg{border-color:rgba(239,68,68,.55);background:rgba(239,68,68,.06)}
+.habit-card.non-neg.done{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.05)}
+.non-neg-toggle{display:flex;align-items:center;justify-content:space-between;padding:.55rem .75rem;border-radius:var(--r);border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.06);margin-bottom:1rem;cursor:pointer;user-select:none;transition:all .2s}
+.non-neg-toggle.active{border-color:rgba(239,68,68,.6);background:rgba(239,68,68,.13)}
+.non-neg-toggle-lbl{font-size:12px;font-weight:600;color:#f87171}
+.non-neg-toggle-status{font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;border:1px solid rgba(239,68,68,.4);color:#f87171;background:transparent;transition:all .2s}
+.non-neg-toggle.active .non-neg-toggle-status{background:rgba(239,68,68,.2);border-color:#f87171}
 .habit-emoji{font-size:20px;flex-shrink:0;line-height:1}
 .habit-info{flex:1;min-width:0}
 .habit-name{font-size:13px;font-weight:600;color:var(--t2);line-height:1.3;transition:color .2s}
@@ -548,7 +555,11 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
 <!-- Emoji Picker Modal -->
 <div class="overlay" id="emoji-modal" onclick="if(event.target===this)closeEmojiModal()">
   <div class="modal" style="max-width:360px;max-height:80vh;overflow-y:auto">
-    <div class="modal-title">Pick an emoji</div>
+    <div class="modal-title">Edit habit</div>
+    <div id="non-neg-toggle" onclick="toggleNonNeg()" class="non-neg-toggle">
+      <span class="non-neg-toggle-lbl">🔴 Non-negotiable</span>
+      <span class="non-neg-toggle-status" id="non-neg-status">OFF</span>
+    </div>
     <div id="emoji-picker-body"></div>
     <div class="modal-btns" style="margin-top:12px">
       <button class="btn btn-ghost" onclick="closeEmojiModal()">Cancel</button>
@@ -748,7 +759,7 @@ function render(){
 function cardHTML(h, day){
   const on=readHabit(h.id,viewDate), s=streak(h.id);
   const isPast=viewDate!==TODAY;
-  return`<div class="habit-card${on?' done':''}${h.cat==='hbp'?' hbp':''}${isPast?' past-date':''}" onclick="toggle('${h.id}','${viewDate}')">
+  return`<div class="habit-card${on?' done':''}${h.cat==='hbp'?' hbp':''}${h.nonNeg?' non-neg':''}${isPast?' past-date':''}" onclick="toggle('${h.id}','${viewDate}')">
     <button class="del-btn" onclick="event.stopPropagation();askDel('${h.id}','${h.label.replace(/'/g,"&#39;")}')" title="Remove"><i class="ti ti-x"></i></button>
     <button class="edit-emoji-btn" onclick="event.stopPropagation();openEditEmoji('${h.id}')" title="Edit emoji">✏️</button>
     <span class="habit-emoji" id="emoji-${h.id}">${h.emoji}</span>
@@ -882,8 +893,25 @@ const EMOJI_LIBRARY=[
   {cat:'🔥 Motivation',emojis:['🔥','⚡','🏆','🥇','✅','💯','🚀','🎖️','🎉','🙌','💥','🌊','🫶','❤️','💚','💙','⭐','🌟','✨','🎯']},
 ];
 let emojiTargetId=null;
+function renderNonNegToggle(){
+  const habits=getHabits();
+  const h=habits.find(x=>x.id===emojiTargetId);
+  const on=!!(h&&h.nonNeg);
+  const tog=document.getElementById('non-neg-toggle');
+  const lbl=document.getElementById('non-neg-status');
+  if(tog) tog.classList.toggle('active',on);
+  if(lbl) lbl.textContent=on?'ON':'OFF';
+}
+function toggleNonNeg(){
+  if(!emojiTargetId)return;
+  const habits=getHabits();
+  const idx=habits.findIndex(x=>x.id===emojiTargetId);
+  if(idx>=0){habits[idx].nonNeg=!habits[idx].nonNeg;setHabits(habits);render();}
+  renderNonNegToggle();
+}
 function openEditEmoji(id){
   emojiTargetId=id;
+  renderNonNegToggle();
   const body=document.getElementById('emoji-picker-body');
   body.innerHTML=EMOJI_LIBRARY.map(cat=>`
     <div class="emoji-cat-lbl">${cat.cat}</div>
