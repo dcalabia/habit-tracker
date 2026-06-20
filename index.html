@@ -183,6 +183,18 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
 .ep-btn{font-size:20px;padding:5px;border:none;background:transparent;border-radius:5px;cursor:pointer;text-align:center;line-height:1;transition:background .1s}
 .ep-btn:hover{background:var(--border2)}
 
+/* ── Schedule reminder row ── */
+.sched-row{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:1.25rem}
+.sched-block{background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--r);padding:.55rem .4rem;text-align:center;cursor:pointer;user-select:none;transition:all .2s;position:relative}
+.sched-block:hover{border-color:var(--border2)}
+.sched-block.active{border-color:var(--accent);background:var(--accent-dim)}
+.sched-block.checked{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.07)}
+.sched-block.active.checked{border-color:#22c55e;background:rgba(34,197,94,.12)}
+.sched-time{font-size:12px;font-weight:700;color:var(--t2);font-family:var(--mono);transition:color .2s}
+.sched-block.active .sched-time{color:#93c5fd}
+.sched-block.checked .sched-time{color:#4ade80}
+.sched-tick{font-size:10px;color:#4ade80;margin-top:2px;height:12px;line-height:12px}
+
 /* ── Import / Export bar ── */
 .io-bar{display:flex;gap:6px;margin-bottom:1.25rem;padding:.5rem .75rem;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);align-items:center}
 .io-lbl{font-size:11px;color:var(--t3);flex:1}
@@ -324,6 +336,15 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
     <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)">
     <button class="io-btn io-import" onclick="document.getElementById('import-file').click()">⬆ Import</button>
     <button class="io-btn io-export" onclick="exportData()">⬇ Export</button>
+  </div>
+
+  <!-- Schedule Reminder -->
+  <div class="sched-row" id="sched-row">
+    <div class="sched-block" data-slot="0" onclick="toggleSched(0)"><div class="sched-time">8am</div><div class="sched-tick" id="sched-tick-0"></div></div>
+    <div class="sched-block" data-slot="1" onclick="toggleSched(1)"><div class="sched-time">12pm</div><div class="sched-tick" id="sched-tick-1"></div></div>
+    <div class="sched-block" data-slot="2" onclick="toggleSched(2)"><div class="sched-time">4pm</div><div class="sched-tick" id="sched-tick-2"></div></div>
+    <div class="sched-block" data-slot="3" onclick="toggleSched(3)"><div class="sched-time">8pm</div><div class="sched-tick" id="sched-tick-3"></div></div>
+    <div class="sched-block" data-slot="4" onclick="toggleSched(4)"><div class="sched-time">12am</div><div class="sched-tick" id="sched-tick-4"></div></div>
   </div>
 
   <!-- Pomodoro Timer -->
@@ -1394,6 +1415,45 @@ function pomoRenderGoal(){
 function pomoRequestNotif(){
   if('Notification' in window && Notification.permission==='default') Notification.requestPermission();
 }
+
+// ── Schedule Reminder ────────────────────────────────────────
+const SCHED_SLOTS = ['8am','12pm','4pm','8pm','12am'];
+// hour ranges: [startHour, endHour) — 12am slot wraps midnight (0-7)
+const SCHED_RANGES = [[8,12],[12,16],[16,20],[20,24],[0,8]];
+
+function getSchedKey(){ return 'hbt-sched:'+TODAY; }
+function getSchedData(){ return ls(getSchedKey()) || [false,false,false,false,false]; }
+function saveSchedData(arr){ lss(getSchedKey(), arr); }
+
+function activeSchedSlot(){
+  const h = new Date().getHours();
+  for(let i=0;i<SCHED_RANGES.length;i++){
+    const [s,e]=SCHED_RANGES[i];
+    if(s<e){ if(h>=s&&h<e) return i; }
+    else { if(h>=s||h<e) return i; } // midnight wrap
+  }
+  return -1;
+}
+
+function renderSched(){
+  const data = getSchedData();
+  const active = activeSchedSlot();
+  document.querySelectorAll('.sched-block').forEach((el,i)=>{
+    el.classList.toggle('active', i===active);
+    el.classList.toggle('checked', !!data[i]);
+    document.getElementById('sched-tick-'+i).textContent = data[i] ? '✓' : '';
+  });
+}
+
+function toggleSched(i){
+  const data = getSchedData();
+  data[i] = !data[i];
+  saveSchedData(data);
+  renderSched();
+}
+
+renderSched();
+setInterval(renderSched, 60*1000);
 
 // Boot
 loadPomo();
