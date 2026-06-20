@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -74,6 +74,10 @@ button{cursor:pointer;font-family:inherit}
 .habit-card.done .habit-check{background:#22c55e;border-color:#22c55e}
 .habit-check i{font-size:12px;color:#fff;opacity:0;transition:opacity .15s}
 .habit-card.done .habit-check i{opacity:1}
+.habit-card[draggable]{cursor:grab}
+.habit-card[draggable]:active{cursor:grabbing}
+.habit-card.drag-over{border-color:var(--accent)!important;background:var(--accent-dim)!important;opacity:.7}
+.habit-card.dragging{opacity:.35;pointer-events:none}
 .del-btn{position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:4px;border:none;background:transparent;color:rgba(255,255,255,0.25);font-size:11px;cursor:pointer;opacity:0;transition:all .15s;display:flex;align-items:center;justify-content:center}
 .habit-card:hover .del-btn{opacity:1}
 .del-btn:hover{background:rgba(239,68,68,.15);color:#f87171}
@@ -759,7 +763,7 @@ function render(){
 function cardHTML(h, day){
   const on=readHabit(h.id,viewDate), s=streak(h.id);
   const isPast=viewDate!==TODAY;
-  return`<div class="habit-card${on?' done':''}${h.cat==='hbp'?' hbp':''}${h.nonNeg?' non-neg':''}${isPast?' past-date':''}" onclick="toggle('${h.id}','${viewDate}')">
+  return`<div class="habit-card${on?' done':''}${h.cat==='hbp'?' hbp':''}${h.nonNeg?' non-neg':''}${isPast?' past-date':''}" draggable="true" data-id="${h.id}" onclick="toggle('${h.id}','${viewDate}')">
     <button class="del-btn" onclick="event.stopPropagation();askDel('${h.id}','${h.label.replace(/'/g,"&#39;")}')" title="Remove"><i class="ti ti-x"></i></button>
     <button class="edit-emoji-btn" onclick="event.stopPropagation();openEditEmoji('${h.id}')" title="Edit emoji">✏️</button>
     <span class="habit-emoji" id="emoji-${h.id}">${h.emoji}</span>
@@ -778,6 +782,43 @@ function renderCheckin(habits, day){
   const he=document.getElementById('hbp-checkin');
   if(re)re.innerHTML=reg.length?reg.map(h=>cardHTML(h,day)).join(''):'<div class="empty-state" style="grid-column:1/-1"><span class="empty-icon">📋</span>No regular habits yet — click "+ Add habit" above.</div>';
   if(he)he.innerHTML=hbp.length?hbp.map(h=>cardHTML(h,day)).join(''):'<div class="empty-state" style="grid-column:1/-1"><span class="empty-icon">🩺</span>No BP habits yet — click "+ Add habit" above.</div>';
+  initDrag();
+}
+
+let _dragId=null;
+function initDrag(){
+  document.querySelectorAll('.habit-card[draggable]').forEach(card=>{
+    card.addEventListener('dragstart',e=>{
+      _dragId=card.dataset.id;
+      setTimeout(()=>card.classList.add('dragging'),0);
+      e.dataTransfer.effectAllowed='move';
+    });
+    card.addEventListener('dragend',()=>{
+      document.querySelectorAll('.habit-card').forEach(c=>c.classList.remove('dragging','drag-over'));
+    });
+    card.addEventListener('dragover',e=>{
+      e.preventDefault();
+      e.dataTransfer.dropEffect='move';
+      if(card.dataset.id!==_dragId){
+        document.querySelectorAll('.habit-card').forEach(c=>c.classList.remove('drag-over'));
+        card.classList.add('drag-over');
+      }
+    });
+    card.addEventListener('dragleave',()=>card.classList.remove('drag-over'));
+    card.addEventListener('drop',e=>{
+      e.preventDefault();
+      const toId=card.dataset.id;
+      if(!_dragId||_dragId===toId)return;
+      const habits=getHabits();
+      const fromIdx=habits.findIndex(h=>h.id===_dragId);
+      const toIdx=habits.findIndex(h=>h.id===toId);
+      if(fromIdx<0||toIdx<0)return;
+      const[moved]=habits.splice(fromIdx,1);
+      habits.splice(toIdx,0,moved);
+      setHabits(habits);
+      render();
+    });
+  });
 }
 
 function buildCal(h){
