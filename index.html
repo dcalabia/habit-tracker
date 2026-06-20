@@ -560,6 +560,7 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
 <div class="overlay" id="emoji-modal" onclick="if(event.target===this)closeEmojiModal()">
   <div class="modal" style="max-width:360px;max-height:80vh;overflow-y:auto">
     <div class="modal-title">Edit habit</div>
+    <input id="habit-name-inp" type="text" placeholder="Habit name..." style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:.5rem .75rem;color:var(--t1);font-size:14px;font-family:inherit;outline:none;margin-bottom:.75rem" onkeydown="if(event.key==='Enter')saveHabitName()">
     <div id="non-neg-toggle" onclick="toggleNonNeg()" class="non-neg-toggle">
       <span class="non-neg-toggle-lbl">🔴 Non-negotiable</span>
       <span class="non-neg-toggle-status" id="non-neg-status">OFF</span>
@@ -567,6 +568,7 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
     <div id="emoji-picker-body"></div>
     <div class="modal-btns" style="margin-top:12px">
       <button class="btn btn-ghost" onclick="closeEmojiModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveHabitName()">Save name</button>
     </div>
   </div>
 </div>
@@ -934,6 +936,16 @@ const EMOJI_LIBRARY=[
   {cat:'🔥 Motivation',emojis:['🔥','⚡','🏆','🥇','✅','💯','🚀','🎖️','🎉','🙌','💥','🌊','🫶','❤️','💚','💙','⭐','🌟','✨','🎯']},
 ];
 let emojiTargetId=null;
+function saveHabitName(){
+  if(!emojiTargetId)return;
+  const inp=document.getElementById('habit-name-inp');
+  const name=inp?inp.value.trim():'';
+  if(!name)return;
+  const habits=getHabits();
+  const idx=habits.findIndex(x=>x.id===emojiTargetId);
+  if(idx>=0){habits[idx].label=name;setHabits(habits);render();}
+  closeEmojiModal();
+}
 function renderNonNegToggle(){
   const habits=getHabits();
   const h=habits.find(x=>x.id===emojiTargetId);
@@ -952,6 +964,10 @@ function toggleNonNeg(){
 }
 function openEditEmoji(id){
   emojiTargetId=id;
+  const habits=getHabits();
+  const h=habits.find(x=>x.id===id);
+  const inp=document.getElementById('habit-name-inp');
+  if(inp&&h){inp.value=h.label;setTimeout(()=>inp.focus(),50);}
   renderNonNegToggle();
   const body=document.getElementById('emoji-picker-body');
   body.innerHTML=EMOJI_LIBRARY.map(cat=>`
