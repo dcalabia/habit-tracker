@@ -565,6 +565,12 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
       <span class="non-neg-toggle-lbl">🔴 Non-negotiable</span>
       <span class="non-neg-toggle-status" id="non-neg-status">OFF</span>
     </div>
+    <div style="margin-bottom:.75rem">
+      <div style="font-size:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);margin-bottom:5px">🔗 Sync with habit (check one → checks both)</div>
+      <select id="habit-link-sel" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:.45rem .65rem;color:var(--t1);font-size:13px;font-family:inherit;outline:none" onchange="savePairedHabit(this.value)">
+        <option value="">— None —</option>
+      </select>
+    </div>
     <div id="emoji-picker-body"></div>
     <div class="modal-btns" style="margin-top:12px">
       <button class="btn btn-ghost" onclick="closeEmojiModal()">Cancel</button>
@@ -683,16 +689,22 @@ function writeHabit(id,dk,val){
   else { const d=getDay(dk); d[id]=val; lss('hbt:'+dk,d); }
 }
 
+function mirrorPaired(id,dk,val){
+  const h=getHabits().find(x=>x.id===id);
+  if(h&&h.pairedId) writeHabit(h.pairedId,dk,val);
+}
+
 function toggleCalDay(id, dk){
-  writeHabit(id, dk, !readHabit(id, dk));
-  // Only re-render calendars + progress, not the whole checkin section
-  renderCals(getHabits());
-  // Update progress bar
+  const val=!readHabit(id,dk);
+  writeHabit(id,dk,val);
+  mirrorPaired(id,dk,val);
   render();
 }
 
 function toggle(id,dk){
-  writeHabit(id,dk,!readHabit(id,dk));
+  const val=!readHabit(id,dk);
+  writeHabit(id,dk,val);
+  mirrorPaired(id,dk,val);
   render();
 }
 
@@ -962,12 +974,45 @@ function toggleNonNeg(){
   if(idx>=0){habits[idx].nonNeg=!habits[idx].nonNeg;setHabits(habits);render();}
   renderNonNegToggle();
 }
+function populateLinkDropdown(){
+  const habits=getHabits();
+  const h=habits.find(x=>x.id===emojiTargetId);
+  const sel=document.getElementById('habit-link-sel');
+  if(!sel)return;
+  sel.innerHTML='<option value="">— None —</option>';
+  habits.filter(x=>x.id!==emojiTargetId).forEach(x=>{
+    const opt=document.createElement('option');
+    opt.value=x.id;
+    opt.textContent=x.emoji+' '+x.label;
+    if(h&&h.pairedId===x.id) opt.selected=true;
+    sel.appendChild(opt);
+  });
+}
+function savePairedHabit(targetId){
+  const habits=getHabits();
+  const idx=habits.findIndex(x=>x.id===emojiTargetId);
+  if(idx<0)return;
+  const old=habits[idx].pairedId;
+  // clear reverse link on old pair
+  if(old){const oi=habits.findIndex(x=>x.id===old);if(oi>=0&&habits[oi].pairedId===emojiTargetId)delete habits[oi].pairedId;}
+  if(targetId){
+    habits[idx].pairedId=targetId;
+    // set reverse link
+    const ti=habits.findIndex(x=>x.id===targetId);
+    if(ti>=0) habits[ti].pairedId=emojiTargetId;
+  } else {
+    delete habits[idx].pairedId;
+  }
+  setHabits(habits);
+  render();
+}
 function openEditEmoji(id){
   emojiTargetId=id;
   const habits=getHabits();
   const h=habits.find(x=>x.id===id);
   const inp=document.getElementById('habit-name-inp');
   if(inp&&h){inp.value=h.label;setTimeout(()=>inp.focus(),50);}
+  populateLinkDropdown();
   renderNonNegToggle();
   const body=document.getElementById('emoji-picker-body');
   body.innerHTML=EMOJI_LIBRARY.map(cat=>`
