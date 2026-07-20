@@ -324,6 +324,62 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
 </style>
 </head>
 <body>
+<div id="sb-login-overlay" style="display:none;position:fixed;inset:0;background:rgba(5,8,14,.94);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#0d1420;border:1px solid #1e2e45;border-radius:12px;padding:28px;width:320px;box-sizing:border-box">
+    <div style="font-size:16px;font-weight:700;color:#dce7f2">&#128274; Habit Tracker</div>
+    <div style="font-size:11px;color:#5b7a99;margin:4px 0 16px">Sign in to sync your data</div>
+    <input id="sb-login-email" type="email" placeholder="Email" autocomplete="username"
+      style="width:100%;box-sizing:border-box;margin-bottom:8px;padding:9px 10px;background:#101a2b;border:1px solid #1e2e45;border-radius:6px;color:#dce7f2;font-size:13px;outline:none"
+      onkeydown="if(event.key==='Enter')document.getElementById('sb-login-pw').focus()">
+    <input id="sb-login-pw" type="password" placeholder="Password" autocomplete="current-password"
+      style="width:100%;box-sizing:border-box;margin-bottom:12px;padding:9px 10px;background:#101a2b;border:1px solid #1e2e45;border-radius:6px;color:#dce7f2;font-size:13px;outline:none"
+      onkeydown="if(event.key==='Enter')sbLogin()">
+    <button onclick="sbLogin()" style="width:100%;padding:9px;background:#1f6feb;border:none;border-radius:6px;color:#fff;font-weight:600;font-size:13px;cursor:pointer">Sign in</button>
+    <div id="sb-login-msg" style="font-size:11px;color:#f87171;margin-top:8px;min-height:14px"></div>
+  </div>
+</div>
+<script>
+// Supabase Auth gate - session shared across dcalabia.github.io (one
+// sign-in unlocks every dashboard). Runs BEFORE the app scripts so
+// SB_TOKEN is set synchronously when the session is still fresh.
+const SB_SESS_KEY='sb-auth-session';
+let SB_TOKEN=null,SB_REFRESH_T=null;
+function sbCfg(){try{const v=localStorage.getItem('hbt-cfg');return v?JSON.parse(v):null;}catch(e){return null;}}
+function sbScheduleRefresh(s){clearTimeout(SB_REFRESH_T);const ms=Math.max(60e3,(s.expires_at*1000-Date.now())-5*60*1000);SB_REFRESH_T=setTimeout(()=>sbRefresh(s.refresh_token),ms);}
+async function sbRefresh(rt){const c=sbCfg();if(!c)return false;try{
+  const r=await fetch(c.url+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{apikey:c.key,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:rt})});
+  if(!r.ok)return false;const s=await r.json();
+  localStorage.setItem(SB_SESS_KEY,JSON.stringify(s));SB_TOKEN=s.access_token;sbScheduleRefresh(s);return true;
+}catch(e){return false;}}
+function sbQueueLogin(){document.addEventListener('DOMContentLoaded',()=>{const ov=document.getElementById('sb-login-overlay');if(ov)ov.style.display='flex';});}
+(function(){try{
+  const raw=localStorage.getItem(SB_SESS_KEY);
+  if(!raw){sbQueueLogin();return;}
+  const s=JSON.parse(raw);
+  if(s.expires_at*1000-Date.now()>5*60*1000){SB_TOKEN=s.access_token;sbScheduleRefresh(s);return;}
+  sbRefresh(s.refresh_token).then(ok=>{
+    if(!ok){sbQueueLogin();return;}
+    if(!sessionStorage.getItem('sb-reloaded')){sessionStorage.setItem('sb-reloaded','1');location.reload();}
+  });
+}catch(e){sbQueueLogin();}})();
+setTimeout(()=>sessionStorage.removeItem('sb-reloaded'),10000);
+async function sbLogin(){
+  const c=sbCfg();const msg=document.getElementById('sb-login-msg');
+  if(!c){msg.textContent='Set up cloud sync first (sync modal)';return;}
+  const email=document.getElementById('sb-login-email').value.trim();
+  const pw=document.getElementById('sb-login-pw').value;
+  if(!email||!pw){msg.textContent='Email and password required';return;}
+  msg.textContent='Signing in…';
+  try{
+    const r=await fetch(c.url+'/auth/v1/token?grant_type=password',{method:'POST',headers:{apikey:c.key,'Content-Type':'application/json'},body:JSON.stringify({email,password:pw})});
+    const s=await r.json();
+    if(!r.ok||!s.access_token)throw new Error(s.error_description||s.msg||'Sign-in failed');
+    localStorage.setItem(SB_SESS_KEY,JSON.stringify(s));
+    location.reload();
+  }catch(e){msg.textContent='✗ '+e.message;}
+}
+</script>
+
 <!-- Pomodoro Fullscreen Overlay -->
 <div class="pomo-fs" id="pomo-fs">
   <button class="pomo-fs-close" onclick="pomoFSHide()">✕ minimize</button>
@@ -1072,7 +1128,7 @@ function goToday(){calYear=new Date().getFullYear();calMonth=new Date().getMonth
 // ── Cloud sync ───────────────────────────────────────────────
 function lcfg(){return ls('hbt-cfg')||null;}
 function scfg(c){localStorage.setItem('hbt-cfg',JSON.stringify(c));}
-function initSB(){const c=lcfg();if(!c)return false;try{sbClient=window.supabase.createClient(c.url,c.key);return true;}catch(e){return false;}}
+function initSB(){const c=lcfg();if(!c)return false;try{sbClient=window.supabase.createClient(c.url,c.key,SB_TOKEN?{global:{headers:{Authorization:'Bearer '+SB_TOKEN}}}:{});return true;}catch(e){return false;}}
 async function cloudUp(k,v){if(!sbClient)return;try{await sbClient.from('dashboard_data').upsert({key:k,value:v,updated_at:new Date().toISOString()});}catch(e){}}
 function setSS(s){const dot=document.getElementById('sync-dot'),lbl=document.getElementById('sync-lbl');if(!dot||!lbl)return;const m={off:{c:'var(--t3)',l:'Sync'},syncing:{c:'#f59e0b',l:'Syncing…'},ok:{c:'#22c55e',l:'Synced ✓'},err:{c:'#f87171',l:'Offline'}}[s];dot.style.background=m.c;lbl.textContent=m.l;}
 async function syncFromCloud(){if(!initSB()){setSS('off');render();return;}setSS('syncing');try{const{data,error}=await sbClient.from('dashboard_data').select('key,value');if(error)throw error;if(data)data.forEach(r=>{if(r.key!=='hbt-cfg')localStorage.setItem(r.key,r.value);});setSS('ok');}catch(e){setSS('err');}render();}
@@ -1666,8 +1722,8 @@ document.addEventListener('click', function(e) {
   function cfg(){try{const v=localStorage.getItem('hbt-cfg');return v?JSON.parse(v):null}catch(e){return null}}
   function load(){try{return JSON.parse(localStorage.getItem(LS)||'[]')}catch(e){return[]}}
   function save(a){localStorage.setItem(LS,JSON.stringify(a));pushRem(a)}
-  async function pushRem(a){const c=cfg();if(!c||!c.url||!c.key)return;try{await fetch(`${c.url}/rest/v1/dashboard_data`,{method:'POST',headers:{apikey:c.key,Authorization:`Bearer ${c.key}`,'Content-Type':'application/json',Prefer:'resolution=merge-duplicates'},body:JSON.stringify({key:LS,value:JSON.stringify(a),updated_at:new Date().toISOString()})})}catch(e){}}
-  async function pullRem(){const c=cfg();if(!c||!c.url||!c.key)return;try{const r=await fetch(`${c.url}/rest/v1/dashboard_data?key=eq.${LS}&select=value`,{headers:{apikey:c.key,Authorization:`Bearer ${c.key}`}});const rows=await r.json();if(rows&&rows[0]&&rows[0].value){localStorage.setItem(LS,rows[0].value);render()}}catch(e){}}
+  async function pushRem(a){const c=cfg();if(!c||!c.url||!c.key)return;try{await fetch(`${c.url}/rest/v1/dashboard_data`,{method:'POST',headers:{apikey:c.key,Authorization:'Bearer '+(SB_TOKEN||c.key),'Content-Type':'application/json',Prefer:'resolution=merge-duplicates'},body:JSON.stringify({key:LS,value:JSON.stringify(a),updated_at:new Date().toISOString()})})}catch(e){}}
+  async function pullRem(){const c=cfg();if(!c||!c.url||!c.key)return;try{const r=await fetch(`${c.url}/rest/v1/dashboard_data?key=eq.${LS}&select=value`,{headers:{apikey:c.key,Authorization:'Bearer '+(SB_TOKEN||c.key)}});const rows=await r.json();if(rows&&rows[0]&&rows[0].value){localStorage.setItem(LS,rows[0].value);render()}}catch(e){}}
   function render(){const a=load();document.getElementById('rem-badge').textContent=a.length;const l=document.getElementById('rem-list');l.innerHTML=a.length?a.map((r,i)=>`<div class="rem-item"><div class="rem-dot"></div><div class="rem-text">${r.replace(/</g,'&lt;')}</div><button class="rem-del" onclick="window._remDel(${i})">✕</button></div>`).join(''):'<div class="rem-empty">No reminders yet</div>'}
   window.toggleRemPanel=function(){open=!open;document.getElementById('rem-panel').style.display=open?'block':'none';document.getElementById('rem-chevron').style.transform=open?'rotate(180deg)':'';if(open)render()};
   window.addReminder=function(){const i=document.getElementById('rem-inp');const v=i.value.trim();if(!v)return;const a=load();a.push(v);save(a);i.value='';render()};
