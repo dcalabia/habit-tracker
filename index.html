@@ -237,7 +237,14 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
 .pomo-modes{display:flex;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:3px;gap:2px;margin-bottom:.9rem}
 .pomo-mode-btn{flex:1;height:26px;background:transparent;border:none;border-radius:5px;font-size:12px;font-weight:500;color:var(--t3);cursor:pointer;transition:all .15s}
 .pomo-mode-btn.active{background:var(--bg2);color:var(--t1);border:1px solid var(--border)}
-.pomo-body{display:grid;grid-template-columns:100px 1fr;gap:1.25rem;align-items:center}
+.pomo-body{display:grid;grid-template-columns:100px 1fr auto;gap:1.25rem;align-items:center}
+.tb-counter{display:flex;flex-direction:column;align-items:center;gap:4px;border-left:1px solid var(--border);padding-left:1.1rem;min-width:88px}
+.tb-counter-lbl{font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--t3);text-align:center}
+.tb-counter-val{font-size:26px;font-weight:800;font-family:var(--mono);color:var(--t1);line-height:1}
+.tb-counter-val.hit{color:#4ade80}
+.tb-counter-goal{font-size:10px;color:var(--t3);font-family:var(--mono)}
+.tb-counter-btns{display:flex;gap:5px;margin-top:2px}
+.tb-counter-btns .pomo-btn{height:24px;padding:0 9px;font-size:13px;font-weight:700}
 .pomo-ring-wrap{position:relative;width:100px;height:100px;flex-shrink:0}
 .pomo-ring{width:100px;height:100px}
 .pomo-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
@@ -537,6 +544,19 @@ async function sbLogin(){
           <span class="pomo-goal-lbl" id="pomo-goal-lbl">0 / 4 today</span>
         </div>
       </div>
+          </div>
+  </div>
+
+  <div class="tb-counter">
+    <div class="tb-counter-lbl">Trading Blocks</div>
+    <div class="tb-counter-val" id="tb-count">0</div>
+    <div class="tb-counter-goal">Goal: 50</div>
+    <div class="tb-counter-btns">
+      <button class="pomo-btn" onclick="adjustTradeBlocks(-1)">−</button>
+      <button class="pomo-btn go" onclick="adjustTradeBlocks(1)">+</button>
+    </div>
+  </div>
+</div>
     </div>
   </div>
 
@@ -1687,6 +1707,39 @@ function pomoRenderGoal(){
   if(fsPips) fsPips.innerHTML=Array.from({length:POMO_GOAL},(_,i)=>`<div class="pomo-fs-pip${i<n?' done':''}"></div>`).join('');
 }
 
+function getTradeBlocks(){
+  return getDay(viewDate).tblocks || 0;
+}
+
+function saveTradeBlocks(n){
+  const d = getDay(viewDate);
+  d.tblocks = n;
+  lss('hbt' + viewDate, d);
+}
+
+function adjustTradeBlocks(delta){
+  const n = Math.max(0, getTradeBlocks() + delta);
+  saveTradeBlocks(n);
+  renderTradeBlocks();
+}
+
+function renderTradeBlocks(){
+  const n = getTradeBlocks();
+  const el = document.getElementById('tb-count');
+
+  if(el){
+    el.textContent = n;
+    el.className = 'tb-counter-val' + (n >= 50 ? ' hit' : '');
+  }
+}
+
+document.addEventListener('keydown', e => {
+  if(e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+  if(!document.querySelector('.tb-counter:hover')) return;
+
+  e.preventDefault();
+  adjustTradeBlocks(e.key === 'ArrowUp' ? 1 : -1);
+});
 function pomoRequestNotif(){
   if('Notification' in window && Notification.permission==='default') Notification.requestPermission();
 }
@@ -1736,6 +1789,7 @@ pomoDisp();
 pomoRing();
 pomoRenderGoal();
 pomoRequestNotif();
+renderTradeBlocks();
 syncFromCloud();
 setInterval(()=>{syncFromCloud();pushAll();}, 5*60*1000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){syncFromCloud();}});
