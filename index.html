@@ -234,6 +234,65 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
 .pu-set.done .pu-set-lbl{color:#4ade80}
 /* ── Pomodoro Timer ── */
 .pomo-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--rl);padding:1rem 1.1rem;margin-bottom:1.25rem}
+/* ── Pomodoro split layout ── */
+.pomo-split{
+  display:grid;
+  grid-template-columns:1fr 130px;
+  gap:1.25rem;
+  align-items:stretch;
+}
+.pomo-col-left{min-width:0}
+.pomo-col-left .pomo-body{grid-template-columns:100px 1fr;gap:1rem}
+.pomo-col-left .pomo-task-inp{font-size:12px}
+.pomo-col-left .pomo-mode-btn{font-size:11px;padding:0 4px}
+
+/* ── Trade counter (right column) ── */
+.pomo-col-right{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  border-left:1px solid var(--border);
+  padding-left:1rem;
+  gap:6px;
+}
+.tc-title{font-size:11px;font-weight:700;color:var(--t2);letter-spacing:.03em;text-align:center;line-height:1.2}
+.tc-sub{font-size:9px;color:var(--t3);text-align:center;margin-bottom:2px}
+.tc-stack{display:flex;flex-direction:column;align-items:center;gap:4px}
+.tc-arrow{
+  width:44px;height:26px;border-radius:7px;
+  border:1.5px solid var(--border2);background:var(--bg3);
+  color:var(--t2);font-size:11px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;user-select:none;transition:all .15s;
+}
+.tc-arrow:hover{background:var(--bgh);border-color:var(--accent);color:#93c5fd}
+.tc-arrow:active{transform:scale(.94)}
+.tc-arrow.dim{opacity:.3;pointer-events:none}
+.tc-number{
+  font-family:var(--mono);font-size:26px;font-weight:800;
+  color:var(--t1);line-height:1;letter-spacing:-.02em;
+  min-width:44px;text-align:center;transition:color .2s;
+}
+.tc-number.zero{color:var(--t3)}
+.tc-number.hit{color:#4ade80}
+.tc-goal{font-size:9px;color:var(--t3);font-family:var(--mono);text-align:center}
+.tc-goal.hit{color:#4ade80}
+.tc-reset{
+  margin-top:2px;height:22px;padding:0 10px;font-size:10px;
+  border-radius:6px;border:1px solid var(--border2);background:transparent;
+  color:var(--t3);cursor:pointer;transition:all .15s;
+}
+.tc-reset:hover{border-color:#f87171;color:#f87171}
+
+/* Mobile: stack the two columns */
+@media(max-width:520px){
+  .pomo-split{grid-template-columns:1fr}
+  .pomo-col-right{
+    border-left:none;border-top:1px solid var(--border);
+    padding-left:0;padding-top:.75rem;
+    flex-direction:row;gap:12px;
+  }
+  .tc-stack{flex-direction:row}
+  .tc-arrow{width:36px;height:36px;font-size:14px}
+}
 .pomo-modes{display:flex;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:3px;gap:2px;margin-bottom:.9rem}
 .pomo-mode-btn{flex:1;height:26px;background:transparent;border:none;border-radius:5px;font-size:12px;font-weight:500;color:var(--t3);cursor:pointer;transition:all .15s}
 .pomo-mode-btn.active{background:var(--bg2);color:var(--t1);border:1px solid var(--border)}
@@ -345,7 +404,34 @@ details summary{font-size:12px;color:var(--t2);cursor:pointer;padding:.4rem .7re
 const SB_SESS_KEY='sb-auth-session';
 let SB_TOKEN=null,SB_REFRESH_T=null;
 function sbCfg(){try{const v=localStorage.getItem('hbt-cfg');return v?JSON.parse(v):null;}catch(e){return null;}}
-function sbScheduleRefresh(s){clearTimeout(SB_REFRESH_T);const ms=Math.max(60e3,(s.expires_at*1000-Date.now())-5*60*1000);SB_REFRESH_T=setTimeout(sbRefreshFromStore,ms);}
+// [Opus 5] Adopt a session another tab just refreshed.
+// Supabase ROTATES the refresh token on every use, and every dashboard
+// on this origin shares one session. With two open, one wins the
+// rotation and the other's token is already spent — its refresh failed
+// and the old code went straight to the password prompt, even though a
+// valid session was sitting in localStorage unread.
+function sbAdoptStored(usedToken){
+  try{
+    const s=JSON.parse(localStorage.getItem(SB_SESS_KEY));
+    if(s && s.access_token && s.refresh_token!==usedToken
+       && s.expires_at*1000-Date.now()>60e3){
+      SB_TOKEN=s.access_token;
+      sbScheduleRefresh(s);
+      initSB();
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+function sbScheduleRefresh(s){
+  clearTimeout(SB_REFRESH_T);
+  // [Opus 5] Jitter — every dashboard computed the SAME renewal moment,
+  // so open tabs fired in lockstep and raced over the rotating refresh
+  // token; the loser got a password prompt. Spread them over ~90s.
+  const jitter=Math.floor(Math.random()*90e3);
+  const ms=Math.max(60e3,(s.expires_at*1000-Date.now())-5*60*1000+jitter);
+  SB_REFRESH_T=setTimeout(sbRefreshFromStore,ms);
+}
 // Multi-tab safe renewal: Supabase ROTATES the refresh token on every
 // use, so a token captured at load time goes stale the moment any other
 // tab/dashboard (same origin, shared session) renews first. Always
@@ -361,6 +447,8 @@ async function sbRefreshFromStore(){
     if(s.expires_at*1000-Date.now()>5*60*1000){SB_TOKEN=s.access_token;ok=true;sbScheduleRefresh(s);}
     else ok=await sbRefresh(s.refresh_token);
   }catch(e){}
+  // [Opus 5] last look — another dashboard may have renewed
+  if(!ok) ok=sbAdoptStored(null);
   if(ok){initSB();}
   else{const ov=document.getElementById('sb-login-overlay');if(ov)ov.style.display='flex';}
   return ok;
@@ -369,11 +457,23 @@ window.addEventListener('storage',e=>{
   if(e.key!==SB_SESS_KEY||!e.newValue)return;
   try{const s=JSON.parse(e.newValue);SB_TOKEN=s.access_token;sbScheduleRefresh(s);initSB();}catch(_){}
 });
-async function sbRefresh(rt){const c=sbCfg();if(!c)return false;try{
-  const r=await fetch(c.url+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{apikey:c.key,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:rt})});
-  if(!r.ok)return false;const s=await r.json();
-  localStorage.setItem(SB_SESS_KEY,JSON.stringify(s));SB_TOKEN=s.access_token;sbScheduleRefresh(s);return true;
-}catch(e){return false;}}
+async function sbRefresh(rt){const c=sbCfg();if(!c)return false;
+  // [Opus 5] two passes: a rotation race is settled by the winning tab's
+  // write, so on failure wait for it and adopt rather than prompting
+  for(let attempt=0; attempt<2; attempt++){
+    try{
+      const r=await fetch(c.url+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{apikey:c.key,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:rt})});
+      if(r.ok){const s=await r.json();
+        localStorage.setItem(SB_SESS_KEY,JSON.stringify(s));SB_TOKEN=s.access_token;sbScheduleRefresh(s);initSB();return true;}
+    }catch(e){}
+    if(sbAdoptStored(rt))return true;
+    if(attempt===0){
+      await new Promise(r=>setTimeout(r,1200));
+      try{const cur=JSON.parse(localStorage.getItem(SB_SESS_KEY));
+        if(cur&&cur.refresh_token&&cur.refresh_token!==rt)rt=cur.refresh_token;}catch(e){}
+    }
+  }
+  return false;}
 function sbQueueLogin(){document.addEventListener('DOMContentLoaded',()=>{const ov=document.getElementById('sb-login-overlay');if(ov)ov.style.display='flex';});}
 (function(){try{
   const raw=localStorage.getItem(SB_SESS_KEY);
@@ -462,43 +562,62 @@ async function sbLogin(){
     <div class="sched-block" data-slot="4" onclick="toggleSched(4)"><div class="sched-time">12am</div><div class="sched-tick" id="sched-tick-4"></div></div>
   </div>
 
-  <!-- Pomodoro Timer -->
+  <!-- Pomodoro Timer + Trade Counter (same card) -->
   <div class="pomo-wrap">
-    <div class="pomo-modes">
-      <button class="pomo-mode-btn active" id="pm-focus" onclick="setPomoMode('focus',25)">Focus 25</button>
-      <button class="pomo-mode-btn" id="pm-short" onclick="setPomoMode('short',5)">Short 5</button>
-      <button class="pomo-mode-btn" id="pm-long" onclick="setPomoMode('long',15)">Long 15</button>
-    </div>
-    <div class="pomo-body">
-      <div class="pomo-ring-wrap">
-        <svg class="pomo-ring" viewBox="0 0 100 100">
-          <circle fill="none" stroke="rgba(255,255,255,.07)" stroke-width="6" cx="50" cy="50" r="42"/>
-          <circle id="pomo-ring-arc" fill="none" stroke="#378add" stroke-width="6" stroke-linecap="round"
-            cx="50" cy="50" r="42" stroke-dasharray="264" stroke-dashoffset="0" transform="rotate(-90 50 50)"/>
-        </svg>
-        <div class="pomo-center">
-          <div class="pomo-time" id="pomo-display">25:00</div>
-          <div class="pomo-mode-lbl" id="pomo-mode-lbl">Focus</div>
+    <div class="pomo-split">
+
+      <!-- LEFT: Pomodoro -->
+      <div class="pomo-col-left">
+        <div class="pomo-modes">
+          <button class="pomo-mode-btn active" id="pm-focus" onclick="setPomoMode('focus',25)">Focus 25</button>
+          <button class="pomo-mode-btn" id="pm-short" onclick="setPomoMode('short',5)">Short 5</button>
+          <button class="pomo-mode-btn" id="pm-long" onclick="setPomoMode('long',15)">Long 15</button>
+        </div>
+        <div class="pomo-body">
+          <div class="pomo-ring-wrap">
+            <svg class="pomo-ring" viewBox="0 0 100 100">
+              <circle fill="none" stroke="rgba(255,255,255,.07)" stroke-width="6" cx="50" cy="50" r="42"/>
+              <circle id="pomo-ring-arc" fill="none" stroke="#378add" stroke-width="6" stroke-linecap="round"
+                cx="50" cy="50" r="42" stroke-dasharray="264" stroke-dashoffset="0" transform="rotate(-90 50 50)"/>
+            </svg>
+            <div class="pomo-center">
+              <div class="pomo-time" id="pomo-display">25:00</div>
+              <div class="pomo-mode-lbl" id="pomo-mode-lbl">Focus</div>
+            </div>
+          </div>
+          <div>
+            <input class="pomo-task-inp" id="pomo-task" placeholder="What are you working on?">
+            <div class="pomo-controls">
+              <button class="pomo-btn" onclick="pomoReset()"><i class="ti ti-refresh"></i></button>
+              <button class="pomo-btn go" onclick="pomoToggle()" id="pomo-start-btn">
+                <i class="ti ti-player-play" id="pomo-icon"></i>
+                <span id="pomo-start-lbl">Start</span>
+              </button>
+              <button class="pomo-btn" onclick="pomoSkip()"><i class="ti ti-player-skip-forward"></i></button>
+            </div>
+            <div class="pomo-goal-row">
+              <div class="pomo-pips" id="pomo-pips"></div>
+              <span class="pomo-goal-lbl" id="pomo-goal-lbl">0 / 4 today</span>
+            </div>
+          </div>
         </div>
       </div>
-      <div>
-        <input class="pomo-task-inp" id="pomo-task" placeholder="What are you working on?">
-        <div class="pomo-controls">
-          <button class="pomo-btn" onclick="pomoReset()"><i class="ti ti-refresh"></i></button>
-          <button class="pomo-btn go" onclick="pomoToggle()" id="pomo-start-btn">
-            <i class="ti ti-player-play" id="pomo-icon"></i>
-            <span id="pomo-start-lbl">Start</span>
-          </button>
-          <button class="pomo-btn" onclick="pomoSkip()"><i class="ti ti-player-skip-forward"></i></button>
+
+      <!-- RIGHT: Trade Review Counter -->
+      <div class="pomo-col-right">
+        <div class="tc-title">📊 Trades Reviewed</div>
+        <div class="tc-sub" id="tc-sub">Today's review count</div>
+        <div class="tc-stack">
+          <div class="tc-arrow" id="tc-up" onclick="tradeCounterUp()" title="Add one">▲</div>
+          <div class="tc-number" id="tc-value">0</div>
+          <div class="tc-arrow" id="tc-down" onclick="tradeCounterDown()" title="Remove one">▼</div>
         </div>
-        <div class="pomo-goal-row">
-          <div class="pomo-pips" id="pomo-pips"></div>
-          <span class="pomo-goal-lbl" id="pomo-goal-lbl">0 / 4 today</span>
-        </div>
+        <div class="tc-goal" id="tc-goal">goal 10</div>
+        <button class="tc-reset" onclick="tradeCounterReset()">reset</button>
       </div>
+
     </div>
   </div>
-
   <div id="date-nav" style="display:flex;align-items:center;gap:8px;margin-bottom:1rem;padding:.5rem .75rem;background:var(--bg2);border:1px solid var(--border);border-radius:10px">
     <button class="mnav-btn" onclick="navDate(-1)" title="Previous day">‹</button>
     <span id="nav-lbl" style="flex:1;text-align:center;font-size:13px;font-weight:600;color:var(--t1)">Today</span>
@@ -856,8 +975,9 @@ function render(){
   const s2done=!!stepsData.s2;
   const stepsDone=s1done?1:0;
   const stepsBonus=s2done?1:0;
-  const done=habitDone+pomoDone+puDone+stepsDone+stepsBonus;
-  const total=habits.length+POMO_GOAL+1+1;
+  const tradeHit = getTradeCount(viewDate) >= TRADE_GOAL ? 1 : 0;
+  const done=habitDone+pomoDone+puDone+stepsDone+stepsBonus+tradeHit;
+  const total=habits.length+POMO_GOAL+1+1+1;
   const pct=total?Math.round(done/total*100):0;
   const fill=document.getElementById('prog-fill');
   const pctEl=document.getElementById('prog-pct');
@@ -876,6 +996,7 @@ function render(){
   renderPeriodic();
   renderPushup();
   renderSteps20k();
+  renderTradeCounter();   
 }
 
 function cardHTML(h, day){
@@ -1469,7 +1590,45 @@ function renderSteps20k(){
     else if(s1done)    sub.textContent='10K hit · bonus available';
     else               sub.textContent='10K required · 20K bonus';
   }
+ }
+// ── Trade Review Counter ─────────────────────────────────────
+const TRADE_GOAL = 10;   // ← your daily target
+
+function getTradeCount(dk){
+  return parseInt(getDay(dk).tradesReviewed || 0, 10);
 }
+function setTradeCount(dk, n){
+  n = Math.max(0, n);
+  const d = getDay(dk);
+  d.tradesReviewed = n;
+  lss('hbt:'+dk, d);
+  renderTradeCounter();
+}
+function tradeCounterUp(){   setTradeCount(viewDate, getTradeCount(viewDate)+1); }
+function tradeCounterDown(){ setTradeCount(viewDate, getTradeCount(viewDate)-1); }
+function tradeCounterReset(){ setTradeCount(viewDate, 0); }
+
+function renderTradeCounter(){
+  const n   = getTradeCount(viewDate);
+  const hit = n >= TRADE_GOAL;
+
+  const val  = document.getElementById('tc-value');
+  const goal = document.getElementById('tc-goal');
+  const down = document.getElementById('tc-down');
+  const sub  = document.getElementById('tc-sub');
+
+  if(val){
+    val.textContent = n;
+    val.className = 'tc-number' + (hit ? ' hit' : n === 0 ? ' zero' : '');
+  }
+  if(goal){
+    goal.textContent = hit ? `${n} ✓ done` : `goal ${TRADE_GOAL}`;
+    goal.className = 'tc-goal' + (hit ? ' hit' : '');
+  }
+  if(down) down.classList.toggle('dim', n === 0);
+  if(sub)  sub.textContent = hit ? 'Goal hit — nice work' : "Today's review count";
+}
+
 
 function pushupStreak(){
   if(!isPushupAllDone(TODAY))return 0;
@@ -1605,7 +1764,7 @@ function pomoComplete(){
   pAllTime++;
   savePomo();
   pomoRenderGoal();
-  renderProgress(); // update daily progress bar
+  render(); // update daily progress bar
   // Notify
   if(Notification.permission==='granted') new Notification('Pomodoro done!',{body:task,icon:'data:,'});
   document.getElementById('pomo-icon').className='ti ti-player-play';
